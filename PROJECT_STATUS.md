@@ -4,11 +4,29 @@
 - ОС: Windows Server
 - Python: 3.13.2 (C:\Users\AdmVps\AppData\Local\Programs\Python\Python313\python.exe)
 - Pip: 24.3.1
-- Виртуальное окружение: venv (предположительно содержит необходимые библиотеки)
+- Виртуальное окружение: venv (содержит необходимые библиотеки)
 - Необходимые библиотеки:
-  - python-telegram-bot (в venv)
-  - openai (в venv)
-  - python-dotenv (в venv)
+  - annotated-types 0.7.0
+  - anyio 4.9.0
+  - certifi 2025.1.31
+  - charset-normalizer 3.4.1
+  - colorama 0.4.6
+  - distro 1.9.0
+  - h11 0.14.0
+  - httpcore 1.0.7
+  - httpx 0.28.1
+  - idna 3.10
+  - jiter 0.9.0
+  - openai 1.68.2
+  - pydantic 2.10.6
+  - pydantic_core 2.27.2
+  - python-dotenv 1.0.1
+  - python-telegram-bot 22.0
+  - requests 2.32.3
+  - sniffio 1.3.1
+  - tqdm 4.67.1
+  - typing_extensions 4.12.2
+  - urllib3 2.3.0
 
 ## Структура проекта
 - `.git/` - Git репозиторий
