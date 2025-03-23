@@ -1,18 +1,26 @@
-🏝️ TORREVIEJA PREMIUM APARTMENTS 🏝️
+🏠 NEW AGE REALTY 🏠
 
-👋 Welcome to our channel! We are owners selling our premium apartments in Torrevieja, Spain.
+👋 Welcome to the official channel for premium apartments in Torrevieja directly from owners!
+¡Bienvenido al canal oficial de apartamentos premium en Torrevieja directamente de los propietarios!
+Willkommen beim offiziellen Kanal für Premium-Apartments in Torrevieja direkt von den Eigentümern!
+Bienvenue sur le canal officiel d'appartements premium à Torrevieja directement des propriétaires!
+
+Please select your preferred language:
+Por favor, seleccione su idioma preferido:
+Bitte wählen Sie Ihre bevorzugte Sprache:
+Veuillez sélectionner votre langue préférée:
+
+[🇬🇧 English]  [🇪🇸 Español]  [🇩🇪 Deutsch]  [🇫🇷 Français]
+
+🏠 NEW AGE REALTY 🏠
+
+👋 Welcome to our official channel! We are property owners selling our premium apartments in Torrevieja, Spain - directly, with no agency fees.
 
 🔑 What makes our properties special:
 - Prime locations in Torrevieja
 - Full legal compliance and clean documentation
 - High-quality finishes and amenities
-- Direct from owners - no agency fees
-
-🌍 Choose your preferred language:
-🇬🇧 For English content, use hashtag #EN or click @torrevieja_apt_bot and type /english
-🇪🇸 Para contenido en español, use hashtag #ES o haga clic en @torrevieja_apt_bot y escriba /español
-🇩🇪 Für Inhalte auf Deutsch, verwenden Sie Hashtag #DE oder klicken Sie auf @torrevieja_apt_bot und geben Sie /deutsch ein
-🇫🇷 Pour le contenu en français, utilisez le hashtag #FR ou cliquez sur @torrevieja_apt_bot et tapez /français
+- Direct from owners - transparent pricing with no commission
 
 🏡 Interested in viewing our properties? Contact us directly through the bot for:
 - Virtual tours
@@ -24,7 +32,5 @@
 
 💼 We ensure transparent and hassle-free purchase process with full legal support.
 
-👋 Hello! I'm Torrevieja Apartments Assistant. 
-Please select your preferred language:
-
-[🇬🇧 English]  [🇪🇸 Español]  [🇩🇪 Deutsch]  [🇫🇷 Français]
+📋 Main menu:
+[🏠 Properties]  [📝 Contact us]  [❓ FAQ]  [📍 About Torrevieja]
