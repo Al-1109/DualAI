@@ -1,4 +1,3 @@
-🏠 NEW AGE REALTY 🏠
 
 👋 ¡Bienvenido a nuestro canal oficial! Somos propietarios que vendemos nuestros apartamentos premium en Torrevieja, España - directamente, sin comisiones de agencia.
 
@@ -7,12 +6,6 @@
 - Pleno cumplimiento legal y documentación limpia
 - Acabados y comodidades de alta calidad
 - Directamente de los propietarios - precios transparentes sin comisión
-
-🏡 ¿Interesado en ver nuestras propiedades? Contáctenos directamente a través del bot para:
-- Tours virtuales
-- Especificaciones detalladas
-- Negociaciones de precio
-- Citas para visitas
 
 ☀️ Torrevieja ofrece un estilo de vida mediterráneo perfecto con hermosas playas, excelente infraestructura y una comunidad vibrante.
 
