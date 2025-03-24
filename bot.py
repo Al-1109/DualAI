@@ -17,8 +17,7 @@ logger = logging.getLogger(__name__)
 # Загрузка переменных окружения
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHANNEL_ID = "@New_Age_Realty"  # ID канала
-
+CHANNEL_ID = "@MirasolEstate"   # ID канала
 async def send_to_channel(context, text, reply_markup=None):
     """Функция для отправки сообщений в канал."""
     try:
