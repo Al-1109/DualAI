@@ -19,6 +19,19 @@ def load_content_file(filename):
         logger.error(f"File not found: {filename}")
         return "Content file not found."
 
+# Функция для создания языковых кнопок
+def create_language_buttons():
+    """Создает стандартные кнопки выбора языка"""
+    return [
+        [
+            InlineKeyboardButton("🇬🇧", callback_data="lang_en"),
+            InlineKeyboardButton("🇪🇸", callback_data="lang_es"),
+            InlineKeyboardButton("🇩🇪", callback_data="lang_de"),
+            InlineKeyboardButton("🇫🇷", callback_data="lang_fr"),
+            InlineKeyboardButton("🇷🇺", callback_data="lang_ru"),
+        ]
+    ]
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start."""
     # Загружаем приветственное сообщение с выбором языка
@@ -68,7 +81,6 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             [InlineKeyboardButton("📝 Contact us", callback_data="menu_contact")],
             [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
             [InlineKeyboardButton("📰 News", callback_data="menu_news")],
-            [InlineKeyboardButton("🌍 Change language", callback_data="menu_language")]
         ]
     elif language == 'es':
         keyboard = [
@@ -76,7 +88,6 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             [InlineKeyboardButton("📝 Contáctenos", callback_data="menu_contact")],
             [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
             [InlineKeyboardButton("📰 Noticias", callback_data="menu_news")],
-            [InlineKeyboardButton("🌍 Cambiar idioma", callback_data="menu_language")]
         ]
     elif language == 'de':
         keyboard = [
@@ -84,7 +95,6 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             [InlineKeyboardButton("📝 Kontakt", callback_data="menu_contact")],
             [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
             [InlineKeyboardButton("📰 Nachrichten", callback_data="menu_news")],
-            [InlineKeyboardButton("🌍 Sprache ändern", callback_data="menu_language")]
         ]
     elif language == 'fr':
         keyboard = [
@@ -92,7 +102,6 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             [InlineKeyboardButton("📝 Contactez-nous", callback_data="menu_contact")],
             [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
             [InlineKeyboardButton("📰 Actualités", callback_data="menu_news")],
-            [InlineKeyboardButton("🌍 Changer de langue", callback_data="menu_language")]
         ]
     elif language == 'ru':
         keyboard = [
@@ -100,7 +109,6 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             [InlineKeyboardButton("📝 Связаться с нами", callback_data="menu_contact")],
             [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
             [InlineKeyboardButton("📰 Новости", callback_data="menu_news")],
-            [InlineKeyboardButton("🌍 Изменить язык", callback_data="menu_language")]
         ]
     else:
         # По умолчанию английский
@@ -109,8 +117,10 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             [InlineKeyboardButton("📝 Contact us", callback_data="menu_contact")],
             [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
             [InlineKeyboardButton("📰 News", callback_data="menu_news")],
-            [InlineKeyboardButton("🌍 Change language", callback_data="menu_language")]
         ]
+    
+    # Добавляем языковые кнопки в нижнюю часть меню
+    keyboard.extend(create_language_buttons())
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -128,85 +138,6 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Получаем выбранный пункт меню и язык пользователя
     menu_item = query.data.split('_')[1]
     language = context.user_data.get('language', 'en')
-    
-    if menu_item == 'language':
-        # Отправляем меню выбора языка
-        welcome_message = load_content_file("Telegram_content/welcome_message.md")
-        keyboard = [
-            [
-                InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
-                InlineKeyboardButton("🇪🇸 Español", callback_data="lang_es"),
-            ],
-            [
-                InlineKeyboardButton("🇩🇪 Deutsch", callback_data="lang_de"),
-                InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr"),
-            ],
-            [
-                InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=welcome_message, reply_markup=reply_markup)
-        return
-    
-    if menu_item == 'back':
-        # Возвращаемся к главному меню с текущим языком
-        menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
-        
-        # Создаем клавиатуру для главного меню на текущем языке
-        if language == 'en':
-            keyboard = [
-                [InlineKeyboardButton("🏠 Properties", callback_data="menu_properties")],
-                [InlineKeyboardButton("📝 Contact us", callback_data="menu_contact")],
-                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
-                [InlineKeyboardButton("📰 News", callback_data="menu_news")],
-                [InlineKeyboardButton("🌍 Change language", callback_data="menu_language")]
-            ]
-        elif language == 'es':
-            keyboard = [
-                [InlineKeyboardButton("🏠 Propiedades", callback_data="menu_properties")],
-                [InlineKeyboardButton("📝 Contáctenos", callback_data="menu_contact")],
-                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
-                [InlineKeyboardButton("📰 Noticias", callback_data="menu_news")],
-                [InlineKeyboardButton("🌍 Cambiar idioma", callback_data="menu_language")]
-            ]
-        elif language == 'de':
-            keyboard = [
-                [InlineKeyboardButton("🏠 Immobilien", callback_data="menu_properties")],
-                [InlineKeyboardButton("📝 Kontakt", callback_data="menu_contact")],
-                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
-                [InlineKeyboardButton("📰 Nachrichten", callback_data="menu_news")],
-                [InlineKeyboardButton("🌍 Sprache ändern", callback_data="menu_language")]
-            ]
-        elif language == 'fr':
-            keyboard = [
-                [InlineKeyboardButton("🏠 Propriétés", callback_data="menu_properties")],
-                [InlineKeyboardButton("📝 Contactez-nous", callback_data="menu_contact")],
-                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
-                [InlineKeyboardButton("📰 Actualités", callback_data="menu_news")],
-                [InlineKeyboardButton("🌍 Changer de langue", callback_data="menu_language")]
-            ]
-        elif language == 'ru':
-            keyboard = [
-                [InlineKeyboardButton("🏠 Объекты", callback_data="menu_properties")],
-                [InlineKeyboardButton("📝 Связаться с нами", callback_data="menu_contact")],
-                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
-                [InlineKeyboardButton("📰 Новости", callback_data="menu_news")],
-                [InlineKeyboardButton("🌍 Изменить язык", callback_data="menu_language")]
-            ]
-        else:
-            # По умолчанию английский
-            keyboard = [
-                [InlineKeyboardButton("🏠 Properties", callback_data="menu_properties")],
-                [InlineKeyboardButton("📝 Contact us", callback_data="menu_contact")],
-                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
-                [InlineKeyboardButton("📰 News", callback_data="menu_news")],
-                [InlineKeyboardButton("🌍 Change language", callback_data="menu_language")]
-            ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=menu_content, reply_markup=reply_markup)
-        return
     
     # Заглушки для разных пунктов меню
     messages = {
@@ -252,7 +183,11 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         'ru': "🔙 Вернуться в Главное Меню"
     }
     
-    keyboard = [[InlineKeyboardButton(back_button_text.get(language, "🔙 Back"), callback_data="menu_back")]]
+    keyboard = [[InlineKeyboardButton(back_button_text.get(language, "🔙 Back"), callback_data=f"lang_{language}")]]
+    
+    # Добавляем языковые кнопки внизу
+    keyboard.extend(create_language_buttons())
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Отправляем ответ
