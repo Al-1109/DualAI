@@ -149,6 +149,65 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await query.edit_message_text(text=welcome_message, reply_markup=reply_markup)
         return
     
+    if menu_item == 'back':
+        # Возвращаемся к главному меню с текущим языком
+        menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
+        
+        # Создаем клавиатуру для главного меню на текущем языке
+        if language == 'en':
+            keyboard = [
+                [InlineKeyboardButton("🏠 Properties", callback_data="menu_properties")],
+                [InlineKeyboardButton("📝 Contact us", callback_data="menu_contact")],
+                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
+                [InlineKeyboardButton("📰 News", callback_data="menu_news")],
+                [InlineKeyboardButton("🌍 Change language", callback_data="menu_language")]
+            ]
+        elif language == 'es':
+            keyboard = [
+                [InlineKeyboardButton("🏠 Propiedades", callback_data="menu_properties")],
+                [InlineKeyboardButton("📝 Contáctenos", callback_data="menu_contact")],
+                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
+                [InlineKeyboardButton("📰 Noticias", callback_data="menu_news")],
+                [InlineKeyboardButton("🌍 Cambiar idioma", callback_data="menu_language")]
+            ]
+        elif language == 'de':
+            keyboard = [
+                [InlineKeyboardButton("🏠 Immobilien", callback_data="menu_properties")],
+                [InlineKeyboardButton("📝 Kontakt", callback_data="menu_contact")],
+                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
+                [InlineKeyboardButton("📰 Nachrichten", callback_data="menu_news")],
+                [InlineKeyboardButton("🌍 Sprache ändern", callback_data="menu_language")]
+            ]
+        elif language == 'fr':
+            keyboard = [
+                [InlineKeyboardButton("🏠 Propriétés", callback_data="menu_properties")],
+                [InlineKeyboardButton("📝 Contactez-nous", callback_data="menu_contact")],
+                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
+                [InlineKeyboardButton("📰 Actualités", callback_data="menu_news")],
+                [InlineKeyboardButton("🌍 Changer de langue", callback_data="menu_language")]
+            ]
+        elif language == 'ru':
+            keyboard = [
+                [InlineKeyboardButton("🏠 Объекты", callback_data="menu_properties")],
+                [InlineKeyboardButton("📝 Связаться с нами", callback_data="menu_contact")],
+                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
+                [InlineKeyboardButton("📰 Новости", callback_data="menu_news")],
+                [InlineKeyboardButton("🌍 Изменить язык", callback_data="menu_language")]
+            ]
+        else:
+            # По умолчанию английский
+            keyboard = [
+                [InlineKeyboardButton("🏠 Properties", callback_data="menu_properties")],
+                [InlineKeyboardButton("📝 Contact us", callback_data="menu_contact")],
+                [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
+                [InlineKeyboardButton("📰 News", callback_data="menu_news")],
+                [InlineKeyboardButton("🌍 Change language", callback_data="menu_language")]
+            ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text=menu_content, reply_markup=reply_markup)
+        return
+    
     # Заглушки для разных пунктов меню
     messages = {
         'properties': {
@@ -193,7 +252,7 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         'ru': "🔙 Вернуться в Главное Меню"
     }
     
-    keyboard = [[InlineKeyboardButton(back_button_text.get(language, "🔙 Back"), callback_data=f"lang_{language}")]]
+    keyboard = [[InlineKeyboardButton(back_button_text.get(language, "🔙 Back"), callback_data="menu_back")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Отправляем ответ
