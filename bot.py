@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
 # Импортируем наши обработчики
-from handlers.client import start_command, language_callback, menu_callback
+from handlers.client import start_command, language_callback, menu_callback, load_content_file, create_language_buttons
 
 # Настройка логирования
 logging.basicConfig(
@@ -17,6 +17,56 @@ logger = logging.getLogger(__name__)
 # Загрузка переменных окружения
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHANNEL_ID = "@New_Age_Realty"  # ID канала
+
+async def send_to_channel(context, text, reply_markup=None):
+    """Функция для отправки сообщений в канал."""
+    try:
+        message = await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=text,
+            reply_markup=reply_markup
+        )
+        logger.info(f"Сообщение отправлено в канал {CHANNEL_ID}")
+        return message
+    except Exception as e:
+        logger.error(f"Ошибка отправки в канал: {e}")
+        return None
+
+async def send_welcome_to_channel(context):
+    """Отправка приветственного сообщения в канал."""
+    welcome_message = load_content_file("Telegram_content/welcome_message.md")
+    
+    # Создаем клавиатуру для выбора языка
+    keyboard = [
+        [
+            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
+            InlineKeyboardButton("🇪🇸 Español", callback_data="lang_es"),
+        ],
+        [
+            InlineKeyboardButton("🇩🇪 Deutsch", callback_data="lang_de"),
+            InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr"),
+        ],
+        [
+            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+        ]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await send_to_channel(context, welcome_message, reply_markup)
+
+async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Административная команда для отправки сообщения в канал."""
+    # Здесь можно добавить проверку прав администратора
+    # Например:
+    # if update.effective_user.id != ADMIN_ID:
+    #     await update.message.reply_text("У вас нет прав для выполнения этой команды.")
+    #     return
+    
+    await update.message.reply_text("Отправка приветственного сообщения в канал...")
+    await send_welcome_to_channel(context)
+    await update.message.reply_text("Сообщение отправлено в канал.")
 
 def main() -> None:
     """Запуск бота."""
@@ -25,6 +75,7 @@ def main() -> None:
 
     # Регистрируем обработчики команд
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("sendtochannel", admin_send_to_channel))
     
     # Обработчики коллбэков от inline кнопок
     application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
@@ -43,7 +94,7 @@ def main() -> None:
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик неизвестных команд."""
     await update.message.reply_text(
-        "Извините, я не распознал эту команду. Попробуйте /start для начала работы."
+        "Извините, я не распознал эту команду. Попробуйте /start для начала работы или /sendtochannel для отправки сообщения в канал."
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
