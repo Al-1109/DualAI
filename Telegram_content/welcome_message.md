@@ -1,4 +1,3 @@
-🏠 NEW AGE REALTY 🏠
 
 👋 Welcome to the official channel for premium apartments in Torrevieja directly from owners!
 ¡Bienvenido al canal oficial de apartamentos premium en Torrevieja directamente de los propietarios!
