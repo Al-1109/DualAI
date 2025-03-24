@@ -18,5 +18,3 @@
 
 💼 Nous assurons un processus d'achat transparent et sans tracas avec un soutien juridique complet.
 
-📋 Menu principal :
-[🏠 Propriétés]  [📝 Contactez-nous]  [❓ FAQ]  [📰 Actualités]
