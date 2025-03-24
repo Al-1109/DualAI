@@ -130,8 +130,23 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     language = context.user_data.get('language', 'en')
     
     if menu_item == 'language':
-        # Возвращаемся к выбору языка
-        await start_command(update, context)
+        # Отправляем меню выбора языка
+        welcome_message = load_content_file("Telegram_content/welcome_message.md")
+        keyboard = [
+            [
+                InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
+                InlineKeyboardButton("🇪🇸 Español", callback_data="lang_es"),
+            ],
+            [
+                InlineKeyboardButton("🇩🇪 Deutsch", callback_data="lang_de"),
+                InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr"),
+            ],
+            [
+                InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text=welcome_message, reply_markup=reply_markup)
         return
     
     # Заглушки для разных пунктов меню
