@@ -68,6 +68,11 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
     await send_welcome_to_channel(context)
     await update.message.reply_text("Сообщение отправлено в канал.")
 
+async def startup(app):
+    """Функция, которая выполняется при запуске бота."""
+    logger.info("Отправка приветственного сообщения в канал при запуске...")
+    await send_welcome_to_channel(app)
+
 def main() -> None:
     """Запуск бота."""
     # Создаем приложение
@@ -86,6 +91,9 @@ def main() -> None:
     
     # Обработчик текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Добавляем функцию, которая выполнится при запуске бота
+    application.post_init = startup
 
     # Запускаем бота
     logger.info("Bot started")
