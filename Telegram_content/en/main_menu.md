@@ -18,5 +18,3 @@
 
 💼 We ensure transparent and hassle-free purchase process with full legal support.
 
-📋 Main menu:
-[🏠 Properties]  [📝 Contact us]  [❓ FAQ]  [📰 News]

@@ -18,5 +18,3 @@
 
 💼 Wir gewährleisten einen transparenten und unkomplizierten Kaufprozess mit voller rechtlicher Unterstützung.
 
-📋 Hauptmenü:
-[🏠 Immobilien]  [📝 Kontakt]  [❓ FAQ]  [📰 Nachrichten]

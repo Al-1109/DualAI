@@ -18,5 +18,3 @@
 
 💼 Garantizamos un proceso de compra transparente y sin problemas con pleno apoyo legal.
 
-📋 Menú principal:
-[🏠 Propiedades]  [📝 Contáctenos]  [❓ FAQ]  [📰 Noticias]
