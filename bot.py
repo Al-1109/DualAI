@@ -1,8 +1,10 @@
 import os
 import logging
+import json
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.error import TelegramError
 
 # Импортируем наши обработчики
 from handlers.client import start_command, language_callback, menu_callback, load_content_file, create_language_buttons
@@ -18,15 +20,57 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHANNEL_ID = "@MirasolEstate"   # ID канала
-async def send_to_channel(context, text, reply_markup=None):
-    """Функция для отправки сообщений в канал."""
+
+# Файл для хранения ID сообщений
+MESSAGE_IDS_FILE = "data/channel_messages.json"
+
+# Функция для сохранения ID сообщений
+def save_message_ids(message_ids):
+    os.makedirs("data", exist_ok=True)
+    with open(MESSAGE_IDS_FILE, 'w') as f:
+        json.dump(message_ids, f)
+
+# Функция для загрузки ID сообщений
+def load_message_ids():
     try:
+        with open(MESSAGE_IDS_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"welcome_message_id": None}
+
+async def send_to_channel(context, text, reply_markup=None, message_key="message"):
+    """Функция для отправки сообщений в канал."""
+    message_ids = load_message_ids()
+    existing_message_id = message_ids.get(message_key)
+    
+    try:
+        # Если есть существующее сообщение, пробуем отредактировать его
+        if existing_message_id:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=CHANNEL_ID,
+                    message_id=existing_message_id,
+                    text=text,
+                    reply_markup=reply_markup
+                )
+                logger.info(f"Сообщение {message_key} обновлено в канале {CHANNEL_ID}")
+                return None  # Возвращаем None, так как мы обновили существующее сообщение
+            except TelegramError as e:
+                logger.error(f"Ошибка при обновлении сообщения: {e}, отправляем новое")
+                # Если сообщение не удалось обновить, отправляем новое
+        
+        # Отправляем новое сообщение
         message = await context.bot.send_message(
             chat_id=CHANNEL_ID,
             text=text,
             reply_markup=reply_markup
         )
-        logger.info(f"Сообщение отправлено в канал {CHANNEL_ID}")
+        
+        # Сохраняем ID нового сообщения
+        message_ids[message_key] = message.message_id
+        save_message_ids(message_ids)
+        
+        logger.info(f"Новое сообщение {message_key} отправлено в канал {CHANNEL_ID}")
         return message
     except Exception as e:
         logger.error(f"Ошибка отправки в канал: {e}")
@@ -53,7 +97,8 @@ async def send_welcome_to_channel(context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await send_to_channel(context, welcome_message, reply_markup)
+    # Используем ключ "welcome_message" для сохранения/обновления этого сообщения
+    await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
 
 async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Административная команда для отправки сообщения в канал."""
@@ -69,7 +114,7 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def startup(app):
     """Функция, которая выполняется при запуске бота."""
-    logger.info("Отправка приветственного сообщения в канал при запуске...")
+    logger.info("Обновление приветственного сообщения в канале при запуске...")
     await send_welcome_to_channel(app)
 
 def main() -> None:
