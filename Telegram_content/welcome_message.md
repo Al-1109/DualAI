@@ -10,5 +10,3 @@ Por favor, seleccione su idioma preferido:
 Bitte wählen Sie Ihre bevorzugte Sprache:
 Veuillez sélectionner votre langue préférée:
 Пожалуйста, выберите предпочитаемый язык:
-
-[🇬🇧 English]  [🇪🇸 Español]  [🇩🇪 Deutsch]  [🇫🇷 Français]  [🇷🇺 Русский]
