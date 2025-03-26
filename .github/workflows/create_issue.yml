@@ -17,11 +17,7 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const issue = await github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: '[TASK] Создание базового ТГ канала',
-            body: `## Описание
+          const issueBody = `## Описание
 Создание базового Telegram канала для взаимодействия с пользователями.
 
 ## Цель
@@ -58,7 +54,13 @@ jobs:
 - [ ] Логирование всех действий
 
 ## Дополнительная информация
-Этот issue является частью Этапа 1.2 "Базовая структура бота" согласно PROJECT_ROADMAP.md`,
+Этот issue является частью Этапа 1.2 "Базовая структура бота" согласно PROJECT_ROADMAP.md`;
+
+          const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: '[TASK] Создание базового ТГ канала',
+            body: issueBody,
             labels: ['task', 'telegram', 'bot']
           });
           
