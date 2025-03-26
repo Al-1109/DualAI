@@ -68,11 +68,15 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def startup(app):
     """Функция, которая выполняется при запуске бота."""
-    logger.info("Обновление приветственного сообщения в канале при запуске...")
-    await send_welcome_to_channel(app)
-    
-    # Не отправляем приветственное сообщение пользователям автоматически
-    # Пользователи получат его, когда нажмут /start
+    # Проверяем, есть ли уже приветственное сообщение
+    message_ids = load_message_ids()
+    if "welcome_message" in message_ids:
+        logger.info("Приветственное сообщение уже существует, пропускаем отправку при запуске")
+        # Не делаем ничего - сообщение уже есть
+    else:
+        # Только при первом запуске отправляем приветственное сообщение
+        logger.info("Отправка первичного приветственного сообщения в канал...")
+        await send_welcome_to_channel(app)
 
 def main() -> None:
     """Запуск бота."""
