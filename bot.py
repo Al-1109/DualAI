@@ -8,9 +8,6 @@ from telegram.error import TelegramError
 # Импортируем утилиты
 from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages
 
-# Импортируем наши обработчики
-# Импорты будут выполнены внутри функций, чтобы избежать циклических зависимостей
-
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -44,18 +41,13 @@ async def send_welcome_to_channel(context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Получаем текущие сообщения
-    message_ids = load_message_ids()
-    
-    # Принудительно очищаем канал от всех сообщений кроме welcome
-    await clean_all_channel_messages(context, None, True)
-    
-    # Отправляем новое приветственное сообщение
+    # ВАЖНОЕ ИЗМЕНЕНИЕ: Сначала отправляем новое сообщение
     message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
     
-    # Окончательно очищаем все сообщения, кроме только что отправленного
+    # После успешной отправки очищаем все остальные сообщения
     await clean_all_channel_messages(context, message.message_id, True)
     
+    logger.info(f"Приветственное сообщение отправлено (ID: {message.message_id})")
     return message
 
 async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -73,12 +65,13 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
 async def startup(app):
     """Функция, которая выполняется при запуске бота."""
     try:
-        # Проверяем, есть ли уже приветственное сообщение
-        message_ids = load_message_ids()
-        
-        # Всегда восстанавливаем приветственное сообщение при запуске
+        # Важно: Принудительно очищаем канал и отправляем новое сообщение
+        # независимо от текущего состояния
         logger.info("Запуск бота: восстанавливаем приветственное сообщение")
+        
+        # Отправляем новое приветственное сообщение
         await send_welcome_to_channel(app)
+        
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
 
@@ -98,8 +91,15 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
     application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
     
-    # ... остальной код остаётся неизменным
-
+    # Обработчик для неизвестных команд
+    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+    
+    # Обработчик для обычных текстовых сообщений
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # Регистрируем функцию, которая будет выполняться при запуске бота
+    application.post_init = startup
+    
     # Запускаем бота
     logger.info("Bot started")
     application.run_polling(allowed_updates=Update.ALL_TYPES)

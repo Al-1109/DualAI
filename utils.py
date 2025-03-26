@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 MESSAGE_IDS_FILE = "data/channel_messages.json"
 
 # ID канала Telegram
-CHANNEL_ID = "@MirasolEstate"
+CHANNEL_ID = "@New_Age_Realty"
 
 # Функция для сохранения ID сообщений
 def save_message_ids(message_ids):
@@ -177,22 +177,17 @@ async def clean_all_channel_messages(context, except_message_id=None, force_clea
                     logger.error(f"Не удалось удалить сообщение {msg_id}: {e}")
                     failed_to_delete.append(msg_id)
         
-        # Обновляем список всех сообщений, оставляя только те, которые не удалось удалить
-        # и добавляем исключенное сообщение, если оно есть
-        message_ids["all_messages"] = failed_to_delete
-        if except_message_id is not None and except_message_id not in failed_to_delete:
-            message_ids["all_messages"] = [except_message_id]
+        # ВАЖНОЕ ИЗМЕНЕНИЕ: Создаем новый список сообщений вместо модификации существующего
+        new_messages = []
+        if except_message_id is not None:
+            new_messages.append(except_message_id)
+        
+        # Обновляем все message_ids с новым списком
+        message_ids = {"all_messages": new_messages}
+        if except_message_id is not None:
+            message_ids["welcome_message"] = except_message_id
         
         # Сохраняем обновленный список
-        save_message_ids(message_ids)
-        
-        # Если какие-то ключи остались от предыдущих подменю, удаляем их
-        keys_to_keep = ["welcome_message", "all_messages"]
-        for key in list(message_ids.keys()):
-            if key not in keys_to_keep and key != except_message_id:
-                if message_ids.get(key) not in message_ids["all_messages"]:
-                    del message_ids[key]
-        
         save_message_ids(message_ids)
         
         return deleted_count > 0
