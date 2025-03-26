@@ -47,8 +47,6 @@ async def send_welcome_to_channel(context):
     # Получаем текущие сообщения
     message_ids = load_message_ids()
     
-    # Принудительно очищаем канал от всех сообщений кроме welcome
-    await clean_all_channel_messages(context, None, True)
     
     # Отправляем новое приветственное сообщение
     message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
