@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from telegram.error import TelegramError
 
 # Импортируем утилиты
-from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_channel_messages
+from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID
 
 # Импортируем наши обработчики
 from handlers.client import start_command, language_callback, menu_callback
@@ -24,13 +24,20 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 async def send_welcome_to_channel(context):
     """Отправка приветственного сообщения в канал."""
-    # Загружаем ID сохраненных сообщений
+    # Удаляем старое сообщение если оно есть
     message_ids = load_message_ids()
     welcome_message_id = message_ids.get("welcome_message")
     
-    # Очищаем канал, сохраняя только приветственное сообщение если оно есть
-    except_ids = [welcome_message_id] if welcome_message_id else []
-    await clean_channel_messages(context, except_ids)
+    # Если есть старое сообщение, удаляем его
+    if welcome_message_id:
+        try:
+            await context.bot.delete_message(chat_id=CHANNEL_ID, message_id=welcome_message_id)
+            logger.info(f"Удалено старое приветственное сообщение {welcome_message_id}")
+            # Удаляем ID из хранилища
+            del message_ids["welcome_message"]
+            save_message_ids(message_ids)
+        except Exception as e:
+            logger.error(f"Не удалось удалить старое приветственное сообщение: {e}")
     
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
     
@@ -51,20 +58,21 @@ async def send_welcome_to_channel(context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Отправляем или обновляем приветственное сообщение
-    message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
+    # Отправляем новое приветственное сообщение
+    message = await context.bot.send_message(
+        chat_id=CHANNEL_ID,
+        text=welcome_message,
+        reply_markup=reply_markup,
+        disable_notification=True  # Отправка без уведомления
+    )
     
-    # Если получили новое сообщение, закрепляем его
-    if message:
-        try:
-            await context.bot.pin_chat_message(
-                chat_id=CHANNEL_ID,
-                message_id=message.message_id,
-                disable_notification=True  # Чтобы не было уведомления о закреплении
-            )
-            logger.info(f"Сообщение {message.message_id} закреплено в канале {CHANNEL_ID}")
-        except TelegramError as e:
-            logger.error(f"Не удалось закрепить сообщение: {e}")
+    # Сохраняем ID нового сообщения
+    message_ids["welcome_message"] = message.message_id
+    save_message_ids(message_ids)
+    
+    logger.info(f"Новое приветственное сообщение {message.message_id} отправлено в канал {CHANNEL_ID}")
+    
+    return message
 
 async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Административная команда для отправки сообщения в канал."""
