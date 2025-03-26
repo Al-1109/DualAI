@@ -64,14 +64,34 @@ jobs:
             labels: ['task', 'telegram', 'bot']
           });
           
-          const project = await github.rest.projects.listForOrg({
-            org: context.repo.owner
-          });
+          // Получаем список проектов организации
+          const projects = await github.graphql(`
+            query {
+              organization(login: "${context.repo.owner}") {
+                projectsV2(first: 1) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+              }
+            }
+          `);
           
-          if (project.data.length > 0) {
-            await github.rest.projects.createCard({
-              project_id: project.data[0].id,
-              content_id: issue.data.id,
-              content_type: 'Issue'
-            });
+          if (projects.organization.projectsV2.nodes.length > 0) {
+            const projectId = projects.organization.projectsV2.nodes[0].id;
+            
+            // Добавляем issue в проект
+            await github.graphql(`
+              mutation {
+                addProjectV2ItemById(input: {
+                  projectId: "${projectId}",
+                  contentId: "${issue.data.node_id}"
+                }) {
+                  item {
+                    id
+                  }
+                }
+              }
+            `);
           } 
