@@ -146,7 +146,7 @@ async def reset_channel(context):
     logger.info(f"Канал полностью сброшен. Новое приветственное сообщение: {message.message_id}")
     return message
 
-aasync def clean_all_channel_messages(context, except_message_id=None, force_cleanup=False):
+async def clean_all_channel_messages(context, except_message_id=None, force_cleanup=False):
     """
     Удаляет все сообщения в канале, за исключением указанного ID.
     Делает это тихо, без уведомлений.
