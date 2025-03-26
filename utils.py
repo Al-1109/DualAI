@@ -62,12 +62,19 @@ async def send_to_channel(context, text, reply_markup=None, message_key="message
         message = await context.bot.send_message(
             chat_id=CHANNEL_ID,
             text=text,
-            reply_markup=reply_markup
+            reply_markup=reply_markup,
+            disable_notification=True  # Отключаем уведомление
         )
         
         # Сохраняем ID нового сообщения
         message_ids[message_key] = message.message_id
         save_message_ids(message_ids)
+        
+        # Попытка пометить все сообщения в канале как прочитанные
+        try:
+            await context.bot.read_all_chat_mentions(chat_id=CHANNEL_ID)
+        except Exception as e:
+            logger.warning(f"Не удалось пометить упоминания как прочитанные: {e}")
         
         logger.info(f"Новое сообщение {message_key} отправлено в канал {CHANNEL_ID}")
         return message
@@ -80,32 +87,35 @@ async def clean_channel_messages(context, except_ids=None):
     if except_ids is None:
         except_ids = []
     
+    # Фильтруем None из списка исключений
+    except_ids = [id for id in except_ids if id is not None]
+    
     try:
-        # Получаем историю сообщений в канале
-        # Ограничиваем 100 последними сообщениями
-        messages = []
-        try:
-            async for message in context.bot.get_chat_history(chat_id=CHANNEL_ID, limit=100):
-                if message.message_id not in except_ids:
-                    messages.append(message.message_id)
-        except (TelegramError, AttributeError) as e:
-            logger.warning(f"Не удалось получить историю чата: {e}")
-            # Альтернативный подход - использовать ID сообщений из нашей базы
-            message_ids = load_message_ids()
-            # Удаляем все ID кроме тех, что нужно сохранить
-            for key, msg_id in message_ids.items():
-                if key != "welcome_message" and msg_id not in except_ids:
-                    messages.append(msg_id)
+        # Используем ID сообщений из нашей базы
+        message_ids = load_message_ids()
+        messages_to_delete = []
+        
+        # Собираем ID сообщений для удаления
+        for key, msg_id in message_ids.items():
+            if msg_id is not None and msg_id not in except_ids:
+                messages_to_delete.append(msg_id)
         
         # Удаляем сообщения по одному
-        for message_id in messages:
+        for message_id in messages_to_delete:
             try:
                 await context.bot.delete_message(chat_id=CHANNEL_ID, message_id=message_id)
                 logger.info(f"Удалено сообщение {message_id} из канала {CHANNEL_ID}")
+                # Удаляем ID сообщения из хранилища
+                for key, msg_id in list(message_ids.items()):
+                    if msg_id == message_id:
+                        del message_ids[key]
                 # Небольшая пауза, чтобы избежать ограничений API
                 await asyncio.sleep(0.1)
             except TelegramError as e:
                 logger.error(f"Не удалось удалить сообщение {message_id}: {e}")
+        
+        # Сохраняем обновленный список ID сообщений
+        save_message_ids(message_ids)
         
         return True
     except Exception as e:
