@@ -1,0 +1,149 @@
+name: Setup Project
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'PROJECT_ROADMAP.md'
+      - '.github/workflows/setup_project.yml'
+
+jobs:
+  setup-project:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Create Project Board
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const project = await github.rest.projects.createForOrg({
+            org: context.repo.owner,
+            name: 'DualAI Development',
+            body: 'Project board for DualAI development',
+            private: false
+          });
+          
+          // Создаем колонки
+          const columns = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done'];
+          for (const columnName of columns) {
+            await github.rest.projects.createColumn({
+              project_id: project.data.id,
+              name: columnName
+            });
+          }
+          
+          // Сохраняем ID проекта для использования в других шагах
+          core.setOutput('project_id', project.data.id);
+    
+    - name: Create Initial Issues
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const projectId = process.env.PROJECT_ID;
+          
+          // Создаем Issue для настройки CI/CD
+          const ciCdIssue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: '[TASK] Настройка CI/CD пайплайна',
+            body: `## Описание
+Настройка базового CI/CD пайплайна для автоматизации процессов разработки, тестирования и деплоя.
+
+## Цель
+Обеспечить автоматизацию процессов разработки, уменьшить количество ручных операций и повысить качество кода.
+
+## Требования
+- [ ] Настройка GitHub Actions для автоматизации
+- [ ] Настройка автоматического тестирования
+- [ ] Настройка автоматического деплоя
+- [ ] Настройка проверки качества кода
+
+## Технические детали
+- Файлы для изменения:
+  - \`.github/workflows/ci.yml\`
+  - \`requirements.txt\`
+  - \`pytest.ini\`
+  - \`.flake8\`
+
+## Критерии приемки
+- [ ] Успешный запуск тестов при каждом пуше
+- [ ] Автоматический деплой при пуше в main
+- [ ] Проверка линтера и форматтера
+- [ ] Генерация отчетов о покрытии тестами
+
+## Связанные компоненты
+- [ ] Тестовое окружение
+- [ ] Система деплоя
+- [ ] Мониторинг
+
+## Метрики успеха
+- [ ] 100% успешных сборок
+- [ ] Время сборки < 5 минут
+- [ ] Автоматическое создание релизов
+- [ ] Автоматическое обновление документации
+
+## Дополнительная информация
+Этот issue является частью Этапа 1.1 "Настройка окружения" согласно PROJECT_ROADMAP.md`,
+            labels: ['task', 'ci-cd', 'infrastructure']
+          });
+          
+          // Добавляем Issue в проект
+          await github.rest.projects.createCard({
+            project_id: projectId,
+            content_id: ciCdIssue.data.id,
+            content_type: 'Issue'
+          });
+          
+          // Создаем Issue для настройки тестового окружения
+          const testIssue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: '[TASK] Настройка тестового окружения',
+            body: `## Описание
+Настройка тестового окружения для обеспечения качества кода.
+
+## Цель
+Обеспечить надежное тестирование кода и автоматическое обнаружение ошибок.
+
+## Требования
+- [ ] Настройка pytest
+- [ ] Настройка coverage
+- [ ] Настройка mock-объектов
+- [ ] Настройка тестовых данных
+
+## Технические детали
+- Файлы для изменения:
+  - \`pytest.ini\`
+  - \`conftest.py\`
+  - \`tests/\`
+  - \`requirements.txt\`
+
+## Критерии приемки
+- [ ] Работающие unit-тесты
+- [ ] Работающие интеграционные тесты
+- [ ] Покрытие кода > 80%
+- [ ] Автоматический запуск тестов
+
+## Связанные компоненты
+- [ ] CI/CD пайплайн
+- [ ] База данных
+- [ ] OpenAI интеграция
+
+## Метрики успеха
+- [ ] Время выполнения тестов < 2 минут
+- [ ] 0 failing тестов
+- [ ] Покрытие кода > 80%
+- [ ] Автоматическая генерация отчетов
+
+## Дополнительная информация
+Этот issue является частью Этапа 1.1 "Настройка окружения" согласно PROJECT_ROADMAP.md`,
+            labels: ['task', 'testing', 'infrastructure']
+          });
+          
+          // Добавляем Issue в проект
+          await github.rest.projects.createCard({
+            project_id: projectId,
+            content_id: testIssue.data.id,
+            content_type: 'Issue'
+          }); 
