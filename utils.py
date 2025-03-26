@@ -38,32 +38,52 @@ def load_content_file(filename):
 
 # Функция для отправки сообщений в канал
 async def send_to_channel(context, text, reply_markup=None, message_key="message"):
-    """Функция для отправки сообщений в канал."""
+    """Функция для отправки/обновления сообщений в канале."""
     message_ids = load_message_ids()
+    existing_message_id = message_ids.get(message_key)
     
-    # Отправляем новое сообщение
-    message = await context.bot.send_message(
-        chat_id=CHANNEL_ID,
-        text=text,
-        reply_markup=reply_markup,
-        disable_notification=True  # Отключаем уведомление
-    )
-    
-    # Сохраняем ID сообщения с заданным ключом
-    message_ids[message_key] = message.message_id
-    
-    # Также добавляем ID в список всех сообщений
-    if "all_messages" not in message_ids:
-        message_ids["all_messages"] = []
-    
-    if message.message_id not in message_ids["all_messages"]:
-        message_ids["all_messages"].append(message.message_id)
-    
-    # Сохраняем обновленный список ID
-    save_message_ids(message_ids)
-    
-    logger.info(f"Новое сообщение {message_key} (ID: {message.message_id}) отправлено в канал {CHANNEL_ID}")
-    return message
+    try:
+        # Если есть существующее сообщение, редактируем его
+        if existing_message_id:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=CHANNEL_ID,
+                    message_id=existing_message_id,
+                    text=text,
+                    reply_markup=reply_markup
+                )
+                logger.info(f"Сообщение {message_key} (ID: {existing_message_id}) обновлено в канале {CHANNEL_ID}")
+                return type('obj', (object,), {'message_id': existing_message_id})  # Возвращаем объект с message_id
+            except Exception as e:
+                logger.error(f"Ошибка при редактировании сообщения: {e}, отправляем новое")
+                # Если сообщение не удалось обновить, продолжаем и отправляем новое
+        
+        # Отправляем новое сообщение
+        message = await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=text,
+            reply_markup=reply_markup,
+            disable_notification=True  # Отключаем уведомление
+        )
+        
+        # Сохраняем ID нового сообщения
+        message_ids[message_key] = message.message_id
+        
+        # Также добавляем ID в список всех сообщений
+        if "all_messages" not in message_ids:
+            message_ids["all_messages"] = []
+        
+        if message.message_id not in message_ids["all_messages"]:
+            message_ids["all_messages"].append(message.message_id)
+        
+        # Сохраняем обновленный список ID
+        save_message_ids(message_ids)
+        
+        logger.info(f"Новое сообщение {message_key} (ID: {message.message_id}) отправлено в канал {CHANNEL_ID}")
+        return message
+    except Exception as e:
+        logger.error(f"Ошибка отправки в канал: {e}")
+        return None
 
 # Функция для очистки всех сообщений в канале
 async def clean_all_channel_messages(context, except_message_id=None):
