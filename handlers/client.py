@@ -3,6 +3,11 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
+# Импортируем функцию send_to_channel из bot.py
+# Для предотвращения циклического импорта, создадим отдельный модуль utils.py позже
+# Пока используем прямой импорт, который будет заменен в следующем шаге
+from bot import send_to_channel, CHANNEL_ID
+
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -147,11 +152,17 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # Обновляем текущую страницу
     context.user_data['current_page'] = 'main_menu'
     
-    # Обновляем сообщение, добавляя клавиатуру
-    await query.edit_message_text(
-        text=menu_content,
-        reply_markup=reply_markup
-    )
+    # Проверяем, является ли это сообщение сообщением канала
+    if query.message.chat.id == CHANNEL_ID:
+        # Используем функцию send_to_channel для обновления сообщения в канале
+        message_key = f"main_menu_{language}"
+        await send_to_channel(context, menu_content, reply_markup, message_key)
+    else:
+        # Это личный чат с пользователем, обновляем сообщение напрямую
+        await query.edit_message_text(
+            text=menu_content,
+            reply_markup=reply_markup
+        )
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора пункта меню."""
@@ -222,5 +233,13 @@ async def show_submenu_page(query, context, page, language):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Отправляем ответ
-    await query.edit_message_text(text=message, reply_markup=reply_markup)
+    # Создаем уникальный ключ для этого типа сообщения
+    message_key = f"{page}_{language}"
+    
+    # Проверяем, является ли это сообщение сообщением канала
+    if query.message.chat.id == CHANNEL_ID:
+        # Используем функцию send_to_channel для обновления сообщения в канале
+        await send_to_channel(context, message, reply_markup, message_key)
+    else:
+        # Это личный чат с пользователем, обновляем сообщение напрямую
+        await query.edit_message_text(text=message, reply_markup=reply_markup)

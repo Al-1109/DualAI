@@ -1,4 +1,3 @@
-
 👋 Welcome to the official channel for premium apartments in Torrevieja directly from owners!
 ¡Bienvenido al canal oficial de apartamentos premium en Torrevieja directamente de los propietarios!
 Willkommen beim offiziellen Kanal für Premium-Apartments in Torrevieja direkt von den Eigentümern!

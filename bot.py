@@ -1,13 +1,15 @@
 import os
 import logging
-import json
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from telegram.error import TelegramError
 
+# Импортируем утилиты
+from utils import load_message_ids, save_message_ids, load_content_file
+
 # Импортируем наши обработчики
-from handlers.client import start_command, language_callback, menu_callback, load_content_file, create_language_buttons
+from handlers.client import start_command, language_callback, menu_callback
 
 # Настройка логирования
 logging.basicConfig(
@@ -23,20 +25,6 @@ CHANNEL_ID = "@MirasolEstate"   # ID канала
 
 # Файл для хранения ID сообщений
 MESSAGE_IDS_FILE = "data/channel_messages.json"
-
-# Функция для сохранения ID сообщений
-def save_message_ids(message_ids):
-    os.makedirs("data", exist_ok=True)
-    with open(MESSAGE_IDS_FILE, 'w') as f:
-        json.dump(message_ids, f)
-
-# Функция для загрузки ID сообщений
-def load_message_ids():
-    try:
-        with open(MESSAGE_IDS_FILE, 'r') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {"welcome_message_id": None}
 
 async def send_to_channel(context, text, reply_markup=None, message_key="message"):
     """Функция для отправки сообщений в канал."""
