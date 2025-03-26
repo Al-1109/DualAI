@@ -40,7 +40,10 @@ def load_content_file(filename):
 
 # Функция для отправки сообщений в канал
 async def send_to_channel(context, text, reply_markup=None, message_key="message"):
-    """Функция для отправки/обновления сообщений в канале."""
+    """
+    Функция для отправки/обновления сообщений в канале.
+    Гарантированно отправляет сообщения без уведомлений.
+    """
     message_ids = load_message_ids()
     existing_message_id = message_ids.get(message_key)
     
@@ -55,17 +58,17 @@ async def send_to_channel(context, text, reply_markup=None, message_key="message
                     reply_markup=reply_markup
                 )
                 logger.info(f"Сообщение {message_key} (ID: {existing_message_id}) обновлено в канале {CHANNEL_ID}")
-                return type('obj', (object,), {'message_id': existing_message_id})  # Возвращаем объект с message_id
+                return type('obj', (object,), {'message_id': existing_message_id})
             except Exception as e:
                 logger.error(f"Ошибка при редактировании сообщения: {e}, отправляем новое")
-                # Если сообщение не удалось обновить, продолжаем и отправляем новое
         
-        # Отправляем новое сообщение
+        # Отправляем новое сообщение с явным отключением уведомлений
+        # Обязательно используем параметр disable_notification=True
         message = await context.bot.send_message(
             chat_id=CHANNEL_ID,
             text=text,
             reply_markup=reply_markup,
-            disable_notification=True  # Отключаем уведомление
+            disable_notification=True  # Гарантируем отсутствие уведомлений
         )
         
         # Сохраняем ID нового сообщения
@@ -81,7 +84,7 @@ async def send_to_channel(context, text, reply_markup=None, message_key="message
         # Сохраняем обновленный список ID
         save_message_ids(message_ids)
         
-        logger.info(f"Новое сообщение {message_key} (ID: {message.message_id}) отправлено в канал {CHANNEL_ID}")
+        logger.info(f"Новое сообщение {message_key} (ID: {message.message_id}) отправлено в канал {CHANNEL_ID} без уведомлений")
         return message
     except Exception as e:
         logger.error(f"Ошибка отправки в канал: {e}")
@@ -146,6 +149,7 @@ async def reset_channel(context):
 async def clean_all_channel_messages(context, except_message_id=None, force_cleanup=False):
     """
     Удаляет все сообщения в канале, за исключением указанного ID.
+    Делает это тихо, без уведомлений.
     
     Args:
         context: Контекст бота
