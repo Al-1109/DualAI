@@ -22,23 +22,11 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+# В файле bot.py замените существующую функцию send_welcome_to_channel на эту:
+
 async def send_welcome_to_channel(context):
     """Отправка приветственного сообщения в канал."""
-    # Удаляем старое сообщение если оно есть
-    message_ids = load_message_ids()
-    welcome_message_id = message_ids.get("welcome_message")
-    
-    # Если есть старое сообщение, удаляем его
-    if welcome_message_id:
-        try:
-            await context.bot.delete_message(chat_id=CHANNEL_ID, message_id=welcome_message_id)
-            logger.info(f"Удалено старое приветственное сообщение {welcome_message_id}")
-            # Удаляем ID из хранилища
-            del message_ids["welcome_message"]
-            save_message_ids(message_ids)
-        except Exception as e:
-            logger.error(f"Не удалось удалить старое приветственное сообщение: {e}")
-    
+    logger.info("Отправляем новое приветственное сообщение...")
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
     
     # Создаем клавиатуру для выбора языка
@@ -59,18 +47,10 @@ async def send_welcome_to_channel(context):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     # Отправляем новое приветственное сообщение
-    message = await context.bot.send_message(
-        chat_id=CHANNEL_ID,
-        text=welcome_message,
-        reply_markup=reply_markup,
-        disable_notification=True  # Отправка без уведомления
-    )
+    message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
     
-    # Сохраняем ID нового сообщения
-    message_ids["welcome_message"] = message.message_id
-    save_message_ids(message_ids)
-    
-    logger.info(f"Новое приветственное сообщение {message.message_id} отправлено в канал {CHANNEL_ID}")
+    # Очищаем все остальные сообщения, кроме только что отправленного
+    await clean_all_channel_messages(context, message.message_id)
     
     return message
 
