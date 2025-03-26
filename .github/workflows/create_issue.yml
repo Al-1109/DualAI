@@ -1,6 +1,7 @@
 name: Create Issue
 
 on:
+  workflow_dispatch:  # Добавляем ручной триггер
   push:
     branches: [ main ]
     paths:
@@ -17,81 +18,70 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: >-
-          const issueBody = `## Описание
-          Создание базового Telegram канала для взаимодействия с пользователями.
-          
-          ## Цель
-          Обеспечить базовое взаимодействие с пользователями через Telegram.
-          
-          ## Требования
-          - [ ] Создание канала в Telegram
-          - [ ] Настройка базовых команд (/start, /help)
-          - [ ] Настройка приветственного сообщения
-          - [ ] Настройка базовых настроек канала
-          
-          ## Технические детали
-          - Файлы для изменения:
-            - \`src/bot/__init__.py\`
-            - \`src/bot/handlers.py\`
-            - \`src/bot/config.py\`
-            - \`requirements.txt\`
-          
-          ## Критерии приемки
-          - [ ] Канал создан и доступен
-          - [ ] Работают базовые команды
-          - [ ] Корректно отображается приветственное сообщение
-          - [ ] Настройки канала соответствуют требованиям
-          
-          ## Связанные компоненты
-          - [ ] Telegram Bot API
-          - [ ] База данных
-          - [ ] Система логирования
-          
-          ## Метрики успеха
-          - [ ] Время ответа бота < 1 секунды
-          - [ ] 100% доступность базовых команд
-          - [ ] Корректная обработка ошибок
-          - [ ] Логирование всех действий
-          
-          ## Дополнительная информация
-          Этот issue является частью Этапа 1.2 "Базовая структура бота" согласно PROJECT_ROADMAP.md`;
-
-          const issue = await github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: '[TASK] Создание базового ТГ канала',
-            body: issueBody,
-            labels: ['task', 'telegram', 'bot']
-          });
-          
-          // Получаем список проектов организации
-          const projects = await github.graphql(`
-            query {
-              organization(login: "${context.repo.owner}") {
-                projectsV2(first: 1) {
-                  nodes {
-                    id
-                    title
-                  }
-                }
-              }
-            }
-          `);
-          
-          if (projects.organization.projectsV2.nodes.length > 0) {
-            const projectId = projects.organization.projectsV2.nodes[0].id;
+          try {
+            const issueBody = `## Описание
+            Создание базового Telegram канала для взаимодействия с пользователями.
             
-            // Добавляем issue в проект
-            await github.graphql(`
-              mutation {
-                addProjectV2ItemById(input: {
-                  projectId: "${projectId}",
-                  contentId: "${issue.data.node_id}"
-                }) {
-                  item {
-                    id
-                  }
-                }
-              }
-            `);
+            ## Цель
+            Обеспечить базовое взаимодействие с пользователями через Telegram.
+            
+            ## Требования
+            - [ ] Создание канала в Telegram
+            - [ ] Настройка базовых команд (/start, /help)
+            - [ ] Настройка приветственного сообщения
+            - [ ] Настройка базовых настроек канала
+            
+            ## Технические детали
+            - Файлы для изменения:
+              - \`src/bot/__init__.py\`
+              - \`src/bot/handlers.py\`
+              - \`src/bot/config.py\`
+              - \`requirements.txt\`
+            
+            ## Критерии приемки
+            - [ ] Канал создан и доступен
+            - [ ] Работают базовые команды
+            - [ ] Корректно отображается приветственное сообщение
+            - [ ] Настройки канала соответствуют требованиям
+            
+            ## Связанные компоненты
+            - [ ] Telegram Bot API
+            - [ ] База данных
+            - [ ] Система логирования
+            
+            ## Метрики успеха
+            - [ ] Время ответа бота < 1 секунды
+            - [ ] 100% доступность базовых команд
+            - [ ] Корректная обработка ошибок
+            - [ ] Логирование всех действий
+            
+            ## Дополнительная информация
+            Этот issue является частью Этапа 1.2 "Базовая структура бота" согласно PROJECT_ROADMAP.md`;
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '[TASK] Создание базового ТГ канала',
+              body: issueBody,
+              labels: ['task', 'telegram', 'bot']
+            });
+            
+            // Получаем список проектов репозитория
+            const projects = await github.rest.projects.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            if (projects.data.length > 0) {
+              const projectId = projects.data[0].id;
+              
+              // Добавляем issue в проект
+              await github.rest.projects.createCard({
+                project_id: projectId,
+                content_id: issue.data.id,
+                content_type: 'Issue'
+              });
+            }
+          } catch (error) {
+            core.setFailed(`Failed to create issue: ${error.message}`);
           } 

@@ -1,6 +1,7 @@
 name: Setup Project
 
 on:
+  workflow_dispatch:  # Добавляем ручной триггер
   push:
     branches: [ main ]
     paths:
@@ -17,24 +18,29 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const project = await github.rest.projects.createForOrg({
-            org: context.repo.owner,
-            name: 'DualAI Development',
-            body: 'Project board for DualAI development',
-            private: false
-          });
-          
-          // Создаем колонки
-          const columns = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done'];
-          for (const columnName of columns) {
-            await github.rest.projects.createColumn({
-              project_id: project.data.id,
-              name: columnName
+          try {
+            const project = await github.rest.projects.createForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'DualAI Development',
+              body: 'Project board for DualAI development',
+              private: false
             });
+            
+            // Создаем колонки
+            const columns = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done'];
+            for (const columnName of columns) {
+              await github.rest.projects.createColumn({
+                project_id: project.data.id,
+                name: columnName
+              });
+            }
+            
+            // Сохраняем ID проекта для использования в других шагах
+            core.setOutput('project_id', project.data.id);
+          } catch (error) {
+            core.setFailed(`Failed to create project: ${error.message}`);
           }
-          
-          // Сохраняем ID проекта для использования в других шагах
-          core.setOutput('project_id', project.data.id);
     
     - name: Create Initial Issues
       uses: actions/github-script@v6
@@ -42,36 +48,40 @@ jobs:
         PROJECT_ID: ${{ steps.create-project.outputs.project_id }}
       with:
         script: |
-          const projectId = process.env.PROJECT_ID;
-          
-          // Создаем Issue для настройки CI/CD
-          const ciCdIssue = await github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: '[TASK] Настройка CI/CD пайплайна',
-            body: `## Описание\nНастройка базового CI/CD пайплайна для автоматизации процессов разработки, тестирования и деплоя.\n\n## Цель\nОбеспечить автоматизацию процессов разработки, уменьшить количество ручных операций и повысить качество кода.\n\n## Требования\n- [ ] Настройка GitHub Actions для автоматизации\n- [ ] Настройка автоматического тестирования\n- [ ] Настройка автоматического деплоя\n- [ ] Настройка проверки качества кода\n\n## Технические детали\n- Файлы для изменения:\n  - \`.github/workflows/ci.yml\`\n  - \`requirements.txt\`\n  - \`pytest.ini\`\n  - \`.flake8\`\n\n## Критерии приемки\n- [ ] Успешный запуск тестов при каждом пуше\n- [ ] Автоматический деплой при пуше в main\n- [ ] Проверка линтера и форматтера\n- [ ] Генерация отчетов о покрытии тестами\n\n## Связанные компоненты\n- [ ] Тестовое окружение\n- [ ] Система деплоя\n- [ ] Мониторинг\n\n## Метрики успеха\n- [ ] 100% успешных сборок\n- [ ] Время сборки < 5 минут\n- [ ] Автоматическое создание релизов\n- [ ] Автоматическое обновление документации\n\n## Дополнительная информация\nЭтот issue является частью Этапа 1.1 "Настройка окружения" согласно PROJECT_ROADMAP.md`,
-            labels: ['task', 'ci-cd', 'infrastructure']
-          });
-          
-          // Добавляем Issue в проект
-          await github.rest.projects.createCard({
-            project_id: projectId,
-            content_id: ciCdIssue.data.id,
-            content_type: 'Issue'
-          });
-          
-          // Создаем Issue для настройки тестового окружения
-          const testIssue = await github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: '[TASK] Настройка тестового окружения',
-            body: `## Описание\nНастройка тестового окружения для обеспечения качества кода.\n\n## Цель\nОбеспечить надежное тестирование кода и автоматическое обнаружение ошибок.\n\n## Требования\n- [ ] Настройка pytest\n- [ ] Настройка coverage\n- [ ] Настройка mock-объектов\n- [ ] Настройка тестовых данных\n\n## Технические детали\n- Файлы для изменения:\n  - \`pytest.ini\`\n  - \`conftest.py\`\n  - \`tests/\`\n  - \`requirements.txt\`\n\n## Критерии приемки\n- [ ] Работающие unit-тесты\n- [ ] Работающие интеграционные тесты\n- [ ] Покрытие кода > 80%\n- [ ] Автоматический запуск тестов\n\n## Связанные компоненты\n- [ ] CI/CD пайплайн\n- [ ] База данных\n- [ ] OpenAI интеграция\n\n## Метрики успеха\n- [ ] Время выполнения тестов < 2 минут\n- [ ] 0 failing тестов\n- [ ] Покрытие кода > 80%\n- [ ] Автоматическая генерация отчетов\n\n## Дополнительная информация\nЭтот issue является частью Этапа 1.1 "Настройка окружения" согласно PROJECT_ROADMAP.md`,
-            labels: ['task', 'testing', 'infrastructure']
-          });
-          
-          // Добавляем Issue в проект
-          await github.rest.projects.createCard({
-            project_id: projectId,
-            content_id: testIssue.data.id,
-            content_type: 'Issue'
-          }); 
+          try {
+            const projectId = process.env.PROJECT_ID;
+            
+            // Создаем Issue для настройки CI/CD
+            const ciCdIssue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '[TASK] Настройка CI/CD пайплайна',
+              body: `## Описание\nНастройка базового CI/CD пайплайна для автоматизации процессов разработки, тестирования и деплоя.\n\n## Цель\nОбеспечить автоматизацию процессов разработки, уменьшить количество ручных операций и повысить качество кода.\n\n## Требования\n- [ ] Настройка GitHub Actions для автоматизации\n- [ ] Настройка автоматического тестирования\n- [ ] Настройка автоматического деплоя\n- [ ] Настройка проверки качества кода\n\n## Технические детали\n- Файлы для изменения:\n  - \`.github/workflows/ci.yml\`\n  - \`requirements.txt\`\n  - \`pytest.ini\`\n  - \`.flake8\`\n\n## Критерии приемки\n- [ ] Успешный запуск тестов при каждом пуше\n- [ ] Автоматический деплой при пуше в main\n- [ ] Проверка линтера и форматтера\n- [ ] Генерация отчетов о покрытии тестами\n\n## Связанные компоненты\n- [ ] Тестовое окружение\n- [ ] Система деплоя\n- [ ] Мониторинг\n\n## Метрики успеха\n- [ ] 100% успешных сборок\n- [ ] Время сборки < 5 минут\n- [ ] Автоматическое создание релизов\n- [ ] Автоматическое обновление документации\n\n## Дополнительная информация\nЭтот issue является частью Этапа 1.1 "Настройка окружения" согласно PROJECT_ROADMAP.md`,
+              labels: ['task', 'ci-cd', 'infrastructure']
+            });
+            
+            // Добавляем Issue в проект
+            await github.rest.projects.createCard({
+              project_id: projectId,
+              content_id: ciCdIssue.data.id,
+              content_type: 'Issue'
+            });
+            
+            // Создаем Issue для настройки тестового окружения
+            const testIssue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '[TASK] Настройка тестового окружения',
+              body: `## Описание\nНастройка тестового окружения для обеспечения качества кода.\n\n## Цель\nОбеспечить надежное тестирование кода и автоматическое обнаружение ошибок.\n\n## Требования\n- [ ] Настройка pytest\n- [ ] Настройка coverage\n- [ ] Настройка mock-объектов\n- [ ] Настройка тестовых данных\n\n## Технические детали\n- Файлы для изменения:\n  - \`pytest.ini\`\n  - \`conftest.py\`\n  - \`tests/\`\n  - \`requirements.txt\`\n\n## Критерии приемки\n- [ ] Работающие unit-тесты\n- [ ] Работающие интеграционные тесты\n- [ ] Покрытие кода > 80%\n- [ ] Автоматический запуск тестов\n\n## Связанные компоненты\n- [ ] CI/CD пайплайн\n- [ ] База данных\n- [ ] OpenAI интеграция\n\n## Метрики успеха\n- [ ] Время выполнения тестов < 2 минут\n- [ ] 0 failing тестов\n- [ ] Покрытие кода > 80%\n- [ ] Автоматическая генерация отчетов\n\n## Дополнительная информация\nЭтот issue является частью Этапа 1.1 "Настройка окружения" согласно PROJECT_ROADMAP.md`,
+              labels: ['task', 'testing', 'infrastructure']
+            });
+            
+            // Добавляем Issue в проект
+            await github.rest.projects.createCard({
+              project_id: projectId,
+              content_id: testIssue.data.id,
+              content_type: 'Issue'
+            });
+          } catch (error) {
+            core.setFailed(`Failed to create issues: ${error.message}`);
+          } 

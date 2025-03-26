@@ -1,6 +1,7 @@
 name: CI/CD Pipeline
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
@@ -44,13 +45,17 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const issue = await github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: '[CI] Test Results',
-            body: `## Test Results\n\nAll tests passed successfully! 🎉\n\n### Details:\n- Branch: ${context.ref}\n- Commit: ${context.sha}\n- Run: ${context.runId}`,
-            labels: ['ci', 'test-results']
-          });
+          try {
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '[CI] Test Results',
+              body: `## Test Results\n\nAll tests passed successfully! 🎉\n\n### Details:\n- Branch: ${context.ref}\n- Commit: ${context.sha}\n- Run: ${context.runId}`,
+              labels: ['ci', 'test-results']
+            });
+          } catch (error) {
+            core.setFailed(`Failed to create test results issue: ${error.message}`);
+          }
 
   update-project-status:
     needs: test
@@ -62,16 +67,21 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const project = await github.rest.projects.listForOrg({
-            org: context.repo.owner
-          });
-          
-          if (project.data.length > 0) {
-            await github.rest.projects.update({
-              project_id: project.data[0].id,
-              name: 'DualAI Development',
-              body: `Last updated: ${new Date().toISOString()}`
+          try {
+            const projects = await github.rest.projects.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo
             });
+            
+            if (projects.data.length > 0) {
+              await github.rest.projects.update({
+                project_id: projects.data[0].id,
+                name: 'DualAI Development',
+                body: `Last updated: ${new Date().toISOString()}`
+              });
+            }
+          } catch (error) {
+            core.setFailed(`Failed to update project status: ${error.message}`);
           }
 
   create-release:
@@ -87,11 +97,15 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const tag = `v${new Date().toISOString().split('T')[0]}`;
-          await github.rest.repos.createRelease({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            tag_name: tag,
-            name: `Release ${tag}`,
-            body: 'Automated release created by CI/CD pipeline'
-          }); 
+          try {
+            const tag = `v${new Date().toISOString().split('T')[0]}`;
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `Release ${tag}`,
+              body: 'Automated release created by CI/CD pipeline'
+            });
+          } catch (error) {
+            core.setFailed(`Failed to create release: ${error.message}`);
+          } 
