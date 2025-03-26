@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 MESSAGE_IDS_FILE = "data/channel_messages.json"
 
 # ID канала Telegram
-CHANNEL_ID = "@New_Age_Realty"
+# ID канала Telegram
+CHANNEL_ID = "@MirasolEstate"
 
 # Функция для сохранения ID сообщений
 def save_message_ids(message_ids):
