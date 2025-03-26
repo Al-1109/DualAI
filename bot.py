@@ -22,11 +22,9 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# В файле bot.py замените существующую функцию send_welcome_to_channel на эту:
-
 async def send_welcome_to_channel(context):
     """Отправка приветственного сообщения в канал."""
-    logger.info("Отправляем новое приветственное сообщение...")
+    logger.info("Отправляем приветственное сообщение...")
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
     
     # Создаем клавиатуру для выбора языка
@@ -46,11 +44,17 @@ async def send_welcome_to_channel(context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    # Получаем текущие сообщения
+    message_ids = load_message_ids()
+    
+    # Принудительно очищаем канал от всех сообщений кроме welcome
+    await clean_all_channel_messages(context, None, True)
+    
     # Отправляем новое приветственное сообщение
     message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
     
-    # Очищаем все остальные сообщения, кроме только что отправленного
-    await clean_all_channel_messages(context, message.message_id)
+    # Окончательно очищаем все сообщения, кроме только что отправленного
+    await clean_all_channel_messages(context, message.message_id, True)
     
     return message
 
@@ -68,15 +72,32 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def startup(app):
     """Функция, которая выполняется при запуске бота."""
-    # Проверяем, есть ли уже приветственное сообщение
-    message_ids = load_message_ids()
-    if "welcome_message" in message_ids:
-        logger.info("Приветственное сообщение уже существует, пропускаем отправку при запуске")
-        # Не делаем ничего - сообщение уже есть
-    else:
-        # Только при первом запуске отправляем приветственное сообщение
-        logger.info("Отправка первичного приветственного сообщения в канал...")
-        await send_welcome_to_channel(app)
+    # ID администратора (замените на ваш ID)
+    ADMIN_ID = 123456789  # Замените на ваш реальный Telegram ID
+    
+    try:
+        # Отправляем уведомление о перезапуске админу
+        await app.bot.send_message(
+            chat_id=ADMIN_ID,
+            text="✅ Бот был перезапущен и готов к работе."
+        )
+        
+        # Проверяем ID сообщений в канале
+        message_ids = load_message_ids()
+        
+        # Если welcome_message существует, но есть другие сообщения, 
+        # возвращаем канал к приветственному сообщению
+        if "welcome_message" in message_ids and len(message_ids.get("all_messages", [])) > 1:
+            logger.info("Найдены дополнительные сообщения в канале, восстанавливаем приветственное сообщение...")
+            await send_welcome_to_channel(app)
+        elif "welcome_message" not in message_ids:
+            # Если приветственного сообщения нет, отправляем его
+            logger.info("Приветственное сообщение не найдено, отправляем новое...")
+            await send_welcome_to_channel(app)
+        else:
+            logger.info("Приветственное сообщение уже существует и является единственным в канале")
+    except Exception as e:
+        logger.error(f"Ошибка при запуске бота: {e}")
 
 def main() -> None:
     """Запуск бота."""
