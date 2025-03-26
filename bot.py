@@ -75,8 +75,8 @@ async def startup(app):
     try:
         # Принудительно сбрасываем канал при каждом запуске
         logger.info("Запуск бота: принудительный сброс состояния канала")
-        from utils import reset_channel  # Импортируем тут, чтобы избежать циклических импортов
-        await reset_channel(app)
+        # Используем send_welcome_to_channel вместо импорта reset_channel
+        await send_welcome_to_channel(app)
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
 
