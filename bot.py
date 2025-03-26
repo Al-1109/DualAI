@@ -72,30 +72,11 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def startup(app):
     """Функция, которая выполняется при запуске бота."""
-    # ID администратора (замените на ваш ID)
-    ADMIN_ID = 123456789  # Замените на ваш реальный Telegram ID
-    
     try:
-        # Отправляем уведомление о перезапуске админу
-        await app.bot.send_message(
-            chat_id=ADMIN_ID,
-            text="✅ Бот был перезапущен и готов к работе."
-        )
-        
-        # Проверяем ID сообщений в канале
-        message_ids = load_message_ids()
-        
-        # Если welcome_message существует, но есть другие сообщения, 
-        # возвращаем канал к приветственному сообщению
-        if "welcome_message" in message_ids and len(message_ids.get("all_messages", [])) > 1:
-            logger.info("Найдены дополнительные сообщения в канале, восстанавливаем приветственное сообщение...")
-            await send_welcome_to_channel(app)
-        elif "welcome_message" not in message_ids:
-            # Если приветственного сообщения нет, отправляем его
-            logger.info("Приветственное сообщение не найдено, отправляем новое...")
-            await send_welcome_to_channel(app)
-        else:
-            logger.info("Приветственное сообщение уже существует и является единственным в канале")
+        # Принудительно сбрасываем канал при каждом запуске
+        logger.info("Запуск бота: принудительный сброс состояния канала")
+        from utils import reset_channel  # Импортируем тут, чтобы избежать циклических импортов
+        await reset_channel(app)
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
 
