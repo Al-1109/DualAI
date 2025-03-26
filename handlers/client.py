@@ -3,10 +3,8 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-# Импортируем функцию send_to_channel из bot.py
-# Для предотвращения циклического импорта, создадим отдельный модуль utils.py позже
-# Пока используем прямой импорт, который будет заменен в следующем шаге
-from bot import send_to_channel, CHANNEL_ID
+# Импортируем функции из utils вместо bot
+from utils import send_to_channel, CHANNEL_ID, load_content_file
 
 # Настройка логирования
 logging.basicConfig(
@@ -14,15 +12,6 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# Функция для загрузки содержимого файлов
-def load_content_file(filename):
-    try:
-        with open(filename, 'r', encoding='utf-8') as file:
-            return file.read()
-    except FileNotFoundError:
-        logger.error(f"File not found: {filename}")
-        return "Content file not found."
 
 # Функция для создания языковых кнопок
 def create_language_buttons():

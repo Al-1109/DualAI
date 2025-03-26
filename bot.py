@@ -3,10 +3,9 @@ import logging
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
-from telegram.error import TelegramError
 
 # Импортируем утилиты
-from utils import load_message_ids, save_message_ids, load_content_file
+from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID
 
 # Импортируем наши обработчики
 from handlers.client import start_command, language_callback, menu_callback
@@ -21,48 +20,6 @@ logger = logging.getLogger(__name__)
 # Загрузка переменных окружения
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHANNEL_ID = "@MirasolEstate"   # ID канала
-
-# Файл для хранения ID сообщений
-MESSAGE_IDS_FILE = "data/channel_messages.json"
-
-async def send_to_channel(context, text, reply_markup=None, message_key="message"):
-    """Функция для отправки сообщений в канал."""
-    message_ids = load_message_ids()
-    existing_message_id = message_ids.get(message_key)
-    
-    try:
-        # Если есть существующее сообщение, пробуем отредактировать его
-        if existing_message_id:
-            try:
-                await context.bot.edit_message_text(
-                    chat_id=CHANNEL_ID,
-                    message_id=existing_message_id,
-                    text=text,
-                    reply_markup=reply_markup
-                )
-                logger.info(f"Сообщение {message_key} обновлено в канале {CHANNEL_ID}")
-                return None  # Возвращаем None, так как мы обновили существующее сообщение
-            except TelegramError as e:
-                logger.error(f"Ошибка при обновлении сообщения: {e}, отправляем новое")
-                # Если сообщение не удалось обновить, отправляем новое
-        
-        # Отправляем новое сообщение
-        message = await context.bot.send_message(
-            chat_id=CHANNEL_ID,
-            text=text,
-            reply_markup=reply_markup
-        )
-        
-        # Сохраняем ID нового сообщения
-        message_ids[message_key] = message.message_id
-        save_message_ids(message_ids)
-        
-        logger.info(f"Новое сообщение {message_key} отправлено в канал {CHANNEL_ID}")
-        return message
-    except Exception as e:
-        logger.error(f"Ошибка отправки в канал: {e}")
-        return None
 
 async def send_welcome_to_channel(context):
     """Отправка приветственного сообщения в канал."""
