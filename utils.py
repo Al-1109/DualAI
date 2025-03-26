@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import asyncio
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
 # Настройка логирования
@@ -84,6 +85,62 @@ async def send_to_channel(context, text, reply_markup=None, message_key="message
     except Exception as e:
         logger.error(f"Ошибка отправки в канал: {e}")
         return None
+
+async def reset_channel(context):
+    """Полностью сбрасывает состояние канала - удаляет все сообщения и отправляет приветственное."""
+    logger.info("Начинаем полный сброс состояния канала...")
+    
+    # Загружаем текущие ID сообщений
+    message_ids = load_message_ids()
+    
+    # Удаляем все известные сообщения
+    for msg_id in message_ids.get("all_messages", []):
+        try:
+            await context.bot.delete_message(chat_id=CHANNEL_ID, message_id=msg_id)
+            logger.info(f"Удалено сообщение {msg_id}")
+            await asyncio.sleep(0.1)  # Пауза для API
+        except Exception as e:
+            logger.error(f"Не удалось удалить сообщение {msg_id}: {e}")
+    
+    # Отправляем приветственное сообщение
+    welcome_message = load_content_file("Telegram_content/welcome_message.md")
+    
+    # Создаем клавиатуру для выбора языка
+    keyboard = [
+        [
+            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
+            InlineKeyboardButton("🇪🇸 Español", callback_data="lang_es"),
+        ],
+        [
+            InlineKeyboardButton("🇩🇪 Deutsch", callback_data="lang_de"),
+            InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr"),
+        ],
+        [
+            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+        ]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Отправляем сообщение
+    message = await context.bot.send_message(
+        chat_id=CHANNEL_ID,
+        text=welcome_message,
+        reply_markup=reply_markup,
+        disable_notification=True
+    )
+    
+    # Полностью сбрасываем данные о сообщениях
+    new_message_ids = {
+        "welcome_message": message.message_id,
+        "all_messages": [message.message_id]
+    }
+    
+    # Сохраняем новое состояние
+    save_message_ids(new_message_ids)
+    
+    logger.info(f"Канал полностью сброшен. Новое приветственное сообщение: {message.message_id}")
+    return message
 
 async def clean_all_channel_messages(context, except_message_id=None, force_cleanup=False):
     """
