@@ -3,9 +3,10 @@ import logging
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.error import TelegramError
 
 # Импортируем утилиты
-from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID
+from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_channel_messages
 
 # Импортируем наши обработчики
 from handlers.client import start_command, language_callback, menu_callback
@@ -23,6 +24,14 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 async def send_welcome_to_channel(context):
     """Отправка приветственного сообщения в канал."""
+    # Загружаем ID сохраненных сообщений
+    message_ids = load_message_ids()
+    welcome_message_id = message_ids.get("welcome_message")
+    
+    # Очищаем канал, сохраняя только приветственное сообщение если оно есть
+    except_ids = [welcome_message_id] if welcome_message_id else []
+    await clean_channel_messages(context, except_ids)
+    
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
     
     # Создаем клавиатуру для выбора языка
@@ -42,8 +51,20 @@ async def send_welcome_to_channel(context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Используем ключ "welcome_message" для сохранения/обновления этого сообщения
-    await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
+    # Отправляем или обновляем приветственное сообщение
+    message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
+    
+    # Если получили новое сообщение, закрепляем его
+    if message:
+        try:
+            await context.bot.pin_chat_message(
+                chat_id=CHANNEL_ID,
+                message_id=message.message_id,
+                disable_notification=True  # Чтобы не было уведомления о закреплении
+            )
+            logger.info(f"Сообщение {message.message_id} закреплено в канале {CHANNEL_ID}")
+        except TelegramError as e:
+            logger.error(f"Не удалось закрепить сообщение: {e}")
 
 async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Административная команда для отправки сообщения в канал."""
@@ -61,6 +82,9 @@ async def startup(app):
     """Функция, которая выполняется при запуске бота."""
     logger.info("Обновление приветственного сообщения в канале при запуске...")
     await send_welcome_to_channel(app)
+    
+    # Не отправляем приветственное сообщение пользователям автоматически
+    # Пользователи получат его, когда нажмут /start
 
 def main() -> None:
     """Запуск бота."""

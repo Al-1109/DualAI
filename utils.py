@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import asyncio
 from telegram.error import TelegramError
 
 # Настройка логирования
@@ -73,3 +74,40 @@ async def send_to_channel(context, text, reply_markup=None, message_key="message
     except Exception as e:
         logger.error(f"Ошибка отправки в канал: {e}")
         return None
+
+async def clean_channel_messages(context, except_ids=None):
+    """Удаляет все сообщения в канале, кроме указанных в except_ids."""
+    if except_ids is None:
+        except_ids = []
+    
+    try:
+        # Получаем историю сообщений в канале
+        # Ограничиваем 100 последними сообщениями
+        messages = []
+        try:
+            async for message in context.bot.get_chat_history(chat_id=CHANNEL_ID, limit=100):
+                if message.message_id not in except_ids:
+                    messages.append(message.message_id)
+        except (TelegramError, AttributeError) as e:
+            logger.warning(f"Не удалось получить историю чата: {e}")
+            # Альтернативный подход - использовать ID сообщений из нашей базы
+            message_ids = load_message_ids()
+            # Удаляем все ID кроме тех, что нужно сохранить
+            for key, msg_id in message_ids.items():
+                if key != "welcome_message" and msg_id not in except_ids:
+                    messages.append(msg_id)
+        
+        # Удаляем сообщения по одному
+        for message_id in messages:
+            try:
+                await context.bot.delete_message(chat_id=CHANNEL_ID, message_id=message_id)
+                logger.info(f"Удалено сообщение {message_id} из канала {CHANNEL_ID}")
+                # Небольшая пауза, чтобы избежать ограничений API
+                await asyncio.sleep(0.1)
+            except TelegramError as e:
+                logger.error(f"Не удалось удалить сообщение {message_id}: {e}")
+        
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при очистке канала: {e}")
+        return False
