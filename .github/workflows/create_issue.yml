@@ -1,0 +1,76 @@
+name: Create Issue
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'PROJECT_ROADMAP.md'
+      - '.github/workflows/create_issue.yml'
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Create Issue
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: '[TASK] Создание базового ТГ канала',
+            body: `## Описание
+Создание базового Telegram канала для взаимодействия с пользователями.
+
+## Цель
+Обеспечить базовое взаимодействие с пользователями через Telegram.
+
+## Требования
+- [ ] Создание канала в Telegram
+- [ ] Настройка базовых команд (/start, /help)
+- [ ] Настройка приветственного сообщения
+- [ ] Настройка базовых настроек канала
+
+## Технические детали
+- Файлы для изменения:
+  - \`src/bot/__init__.py\`
+  - \`src/bot/handlers.py\`
+  - \`src/bot/config.py\`
+  - \`requirements.txt\`
+
+## Критерии приемки
+- [ ] Канал создан и доступен
+- [ ] Работают базовые команды
+- [ ] Корректно отображается приветственное сообщение
+- [ ] Настройки канала соответствуют требованиям
+
+## Связанные компоненты
+- [ ] Telegram Bot API
+- [ ] База данных
+- [ ] Система логирования
+
+## Метрики успеха
+- [ ] Время ответа бота < 1 секунды
+- [ ] 100% доступность базовых команд
+- [ ] Корректная обработка ошибок
+- [ ] Логирование всех действий
+
+## Дополнительная информация
+Этот issue является частью Этапа 1.2 "Базовая структура бота" согласно PROJECT_ROADMAP.md`,
+            labels: ['task', 'telegram', 'bot']
+          });
+          
+          // Добавляем Issue в проект
+          const project = await github.rest.projects.listForOrg({
+            org: context.repo.owner
+          });
+          
+          if (project.data.length > 0) {
+            await github.rest.projects.createCard({
+              project_id: project.data[0].id,
+              content_id: issue.data.id,
+              content_type: 'Issue'
+            });
+          } 
