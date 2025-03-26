@@ -1,0 +1,105 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  issue_comment:
+    types: [created]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.13'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      run: |
+        pytest
+    
+    - name: Run linting
+      run: |
+        flake8 .
+        black . --check
+
+  update-project-status:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Update PROJECT_STATUS.md
+      run: |
+        # Здесь будет скрипт обновления статуса
+        echo "Updating project status..."
+    
+    - name: Commit changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add PROJECT_STATUS.md
+        git commit -m "docs: update project status [skip ci]"
+        git push
+
+  create-release:
+    needs: [test, update-project-status]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        draft: false
+        prerelease: false
+
+  issue-automation:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment'
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Process Issue Comment
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const comment = context.payload.comment.body;
+          const issue = context.payload.issue;
+          
+          // Автоматическое создание ветки при комментарии с командой
+          if (comment.startsWith('/create-branch')) {
+            const branchName = `feature/issue-${issue.number}`;
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/heads/${branchName}`,
+              sha: context.sha
+            });
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: `Создана ветка ${branchName}`
+            });
+          } 
