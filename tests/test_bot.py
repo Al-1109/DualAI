@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
-from bot import handle_message, unknown_command
-from handlers.client import start_command, language_callback, menu_callback
+from src.bot import handle_message, unknown_command
+from src.handlers.client import start_command, language_callback, menu_callback
 
 @pytest.mark.asyncio
 async def test_unknown_command():
