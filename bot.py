@@ -20,7 +20,7 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 async def send_welcome_to_channel(context):
-    """Отправка приветственного сообщения в канал."""
+    """Отправка приветственного сообщения в канал без уведомлений."""
     logger.info("Отправляем приветственное сообщение...")
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
     
@@ -41,7 +41,7 @@ async def send_welcome_to_channel(context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # ВАЖНОЕ ИЗМЕНЕНИЕ: Сначала отправляем новое сообщение
+    # Используем функцию send_to_channel, которая уже настроена на тихую отправку
     message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
     
     # После успешной отправки очищаем все остальные сообщения
