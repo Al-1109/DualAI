@@ -132,3 +132,4 @@
 - Руководство пользователя
 - FAQ
 - Примеры использования test: trigger workflow
+test: trigger workflow
