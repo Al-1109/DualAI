@@ -72,30 +72,38 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def startup(app):
     """Функция, которая выполняется при запуске бота."""
-    # ID администратора (замените на ваш ID)
-    ADMIN_ID = 123456789  # Замените на ваш реальный Telegram ID
-    
     try:
-        # Отправляем уведомление о перезапуске админу
-        await app.bot.send_message(
-            chat_id=ADMIN_ID,
-            text="✅ Бот был перезапущен и готов к работе."
-        )
-        
         # Проверяем ID сообщений в канале
         message_ids = load_message_ids()
         
-        # Если welcome_message существует, но есть другие сообщения, 
-        # возвращаем канал к приветственному сообщению
-        if "welcome_message" in message_ids and len(message_ids.get("all_messages", [])) > 1:
-            logger.info("Найдены дополнительные сообщения в канале, восстанавливаем приветственное сообщение...")
-            await send_welcome_to_channel(app)
-        elif "welcome_message" not in message_ids:
-            # Если приветственного сообщения нет, отправляем его
-            logger.info("Приветственное сообщение не найдено, отправляем новое...")
+        # Проверяем, находится ли канал в неправильном состоянии
+        welcome_message_id = message_ids.get("welcome_message")
+        is_incorrect_state = False
+        
+        # Если есть welcome_message_id, но он не является "активным" сообщением
+        # или есть другие сообщения
+        if welcome_message_id:
+            # Если в канале больше одного сообщения, считаем, что состояние неправильное
+            if len(message_ids.get("all_messages", [])) > 1:
+                is_incorrect_state = True
+                logger.info("Найдены дополнительные сообщения в канале")
+            
+            # Если в списке ключей есть не-welcome, значит, было переключение на подменю
+            for key in message_ids.keys():
+                if key != "welcome_message" and key != "all_messages":
+                    is_incorrect_state = True
+                    logger.info(f"Найдено сообщение подменю: {key}")
+        else:
+            # Если нет welcome_message_id, однозначно состояние неправильное
+            is_incorrect_state = True
+            logger.info("Приветственное сообщение не найдено")
+        
+        # Если обнаружено неправильное состояние, возвращаем канал к приветственному сообщению
+        if is_incorrect_state:
+            logger.info("Обнаружено неправильное состояние канала, восстанавливаем приветственное сообщение...")
             await send_welcome_to_channel(app)
         else:
-            logger.info("Приветственное сообщение уже существует и является единственным в канале")
+            logger.info("Канал в правильном состоянии, никаких действий не требуется")
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
 
