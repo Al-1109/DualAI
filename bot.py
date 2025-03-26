@@ -73,9 +73,11 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
 async def startup(app):
     """Функция, которая выполняется при запуске бота."""
     try:
-        # Принудительно сбрасываем канал при каждом запуске
-        logger.info("Запуск бота: принудительный сброс состояния канала")
-        # Используем send_welcome_to_channel вместо импорта reset_channel
+        # Проверяем, есть ли уже приветственное сообщение
+        message_ids = load_message_ids()
+        
+        # Всегда восстанавливаем приветственное сообщение при запуске
+        logger.info("Запуск бота: восстанавливаем приветственное сообщение")
         await send_welcome_to_channel(app)
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
