@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from telegram.error import TelegramError
 
 # Импортируем утилиты
-from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID
+from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages
 
 # Импортируем наши обработчики
 from handlers.client import start_command, language_callback, menu_callback
