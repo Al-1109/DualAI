@@ -21,6 +21,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Константы для путей
+WELCOME_IMAGE_PATH = "media/images/photo.jpg"
+
 # Функция для создания языковых кнопок
 def create_language_buttons():
     """Создает стандартные кнопки выбора языка"""
@@ -111,12 +114,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Сбрасываем текущую страницу пользователя
     context.user_data['current_page'] = 'welcome'
     
-    # Путь к приветственному изображению
-    welcome_image_path = "media/images/photo.jpg"
-    
     try:
         # Отправляем фото с текстом в подписи
-        with open(welcome_image_path, "rb") as photo:
+        with open(WELCOME_IMAGE_PATH, "rb") as photo:
             await update.message.reply_photo(
                 photo=photo,
                 caption=welcome_message,
@@ -156,6 +156,10 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             return
     
     # В остальных случаях показываем главное меню
+    await show_main_menu(query, context, language)
+
+async def show_main_menu(query, context, language):
+    """Показывает главное меню на выбранном языке с фотографией"""
     menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
     keyboard = create_menu_keyboard(language)
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -164,97 +168,84 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['current_page'] = 'main_menu'
     
     # Проверяем, является ли это сообщение сообщением канала
-    is_channel = False
-    if query.message.chat.type == 'channel':
-        is_channel = True
-    elif query.message.chat.username and CHANNEL_ID.replace("@", "") == query.message.chat.username:
-        is_channel = True
+    is_channel = query.message.chat.type == 'channel' or (
+        query.message.chat.username and CHANNEL_ID.replace("@", "") == query.message.chat.username
+    )
     
     if is_channel:
-        # Поскольку это канал, просто обновляем сообщение вместо удаления и создания нового
-        # Это не выбросит пользователя из активного окна
+        # УЛУЧШЕНИЕ: Всегда отправляем новое сообщение с фото и только потом удаляем старое
+        message_ids = load_message_ids()
+        message_key = f"main_menu_{language}"
+        
+        # Отправляем новое сообщение с фото без уведомления
         try:
-            # Если сообщение содержит фото, нам нужно удалить и отправить новое
-            if query.message.photo:
-                message_ids = load_message_ids()
-                language_image_path = "media/images/photo.jpg"
-                
-                # Отправляем новое сообщение с фото
-                with open(language_image_path, "rb") as photo_file:
-                    message = await context.bot.send_photo(
-                        chat_id=CHANNEL_ID,
-                        photo=photo_file,
-                        caption=menu_content,
-                        reply_markup=reply_markup,
-                        parse_mode="Markdown",
-                        disable_notification=True  # Отключаем уведомления
-                    )
-                
-                # Сохраняем ID нового сообщения
-                message_key = f"main_menu_{language}"
-                message_ids[message_key] = message.message_id
-                
-                # Обновляем список сообщений только после успешной отправки нового
-                if "all_messages" not in message_ids:
-                    message_ids["all_messages"] = []
-                
-                if message.message_id not in message_ids["all_messages"]:
-                    message_ids["all_messages"].append(message.message_id)
-                
-                # Удаляем старое сообщение ПОСЛЕ отправки нового
-                # Это предотвратит выбрасывание пользователя из канала
-                try:
-                    old_message_id = query.message.message_id
-                    await context.bot.delete_message(
-                        chat_id=CHANNEL_ID,
-                        message_id=old_message_id
-                    )
-                    
-                    # Удаляем ID из списка всех сообщений
-                    if old_message_id in message_ids["all_messages"]:
-                        message_ids["all_messages"].remove(old_message_id)
-                except Exception as e:
-                    logger.error(f"Ошибка при удалении старого сообщения: {e}")
-                
-                # Сохраняем обновленный список ID
-                save_message_ids(message_ids)
-            else:
-                # Обычное текстовое сообщение
-                await query.edit_message_text(
-                    text=menu_content,
-                    reply_markup=reply_markup
+            with open(WELCOME_IMAGE_PATH, "rb") as photo_file:
+                message = await context.bot.send_photo(
+                    chat_id=CHANNEL_ID,
+                    photo=photo_file,
+                    caption=menu_content,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown",
+                    disable_notification=True  # Отключаем уведомления
                 )
+            
+            # Сохраняем ID нового сообщения
+            message_ids[message_key] = message.message_id
+            
+            # Обновляем список сообщений
+            if "all_messages" not in message_ids:
+                message_ids["all_messages"] = []
+            
+            if message.message_id not in message_ids["all_messages"]:
+                message_ids["all_messages"].append(message.message_id)
+            
+            # Удаляем старое сообщение ПОСЛЕ отправки нового
+            try:
+                old_message_id = query.message.message_id
+                await context.bot.delete_message(
+                    chat_id=CHANNEL_ID,
+                    message_id=old_message_id
+                )
+                
+                # Удаляем ID из списка всех сообщений
+                if old_message_id in message_ids["all_messages"]:
+                    message_ids["all_messages"].remove(old_message_id)
+            except Exception as e:
+                logger.error(f"Ошибка при удалении старого сообщения: {e}")
+            
+            # Сохраняем обновленный список ID
+            save_message_ids(message_ids)
+            
         except Exception as e:
-            logger.error(f"Ошибка при обновлении сообщения в канале: {e}")
-            # Используем send_to_channel как запасной вариант
-            await send_to_channel(context, menu_content, reply_markup, f"main_menu_{language}")
+            logger.error(f"Ошибка при отправке фото в канал: {e}")
+            # Используем запасной вариант - текстовое сообщение
+            await send_to_channel(context, menu_content, reply_markup, message_key)
     else:
         # Это личный чат с пользователем
         try:
-            # Если есть фото, удаляем сообщение и отправляем новое
-            if query.message.photo:
-                welcome_image_path = "media/images/photo.jpg"
-                with open(welcome_image_path, "rb") as photo:
-                    await query.message.reply_photo(
-                        photo=photo,
-                        caption=menu_content,
-                        reply_markup=reply_markup,
-                        parse_mode="Markdown"
-                    )
-                # Удаляем предыдущее сообщение ПОСЛЕ отправки нового
-                await query.message.delete()
-            else:
-                # Обычное текстовое сообщение - можно редактировать
+            # Отправляем новое сообщение с фото и удаляем старое
+            with open(WELCOME_IMAGE_PATH, "rb") as photo:
+                new_message = await query.message.reply_photo(
+                    photo=photo,
+                    caption=menu_content,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+            
+            # Удаляем предыдущее сообщение ПОСЛЕ отправки нового
+            await query.message.delete()
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении сообщения в чате: {e}")
+            try:
                 await query.edit_message_text(
                     text=menu_content,
                     reply_markup=reply_markup
                 )
-        except Exception as e:
-            logger.error(f"Ошибка при обновлении сообщения: {e}")
-            await query.message.reply_text(
-                text=menu_content,
-                reply_markup=reply_markup
-            )
+            except Exception:
+                await query.message.reply_text(
+                    text=menu_content,
+                    reply_markup=reply_markup
+                )
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора пункта меню."""
@@ -272,7 +263,7 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await show_submenu_page(query, context, menu_item, language)
 
 async def show_submenu_page(query, context, page, language):
-    """Показывает подменю на выбранном языке"""
+    """Показывает подменю на выбранном языке без мерцания"""
     
     # Заглушки для разных пунктов меню
     messages = {
@@ -329,57 +320,59 @@ async def show_submenu_page(query, context, page, language):
     message_key = f"{page}_{language}"
     
     # Проверяем, является ли это сообщение сообщением канала
-    is_channel = False
-    if query.message.chat.type == 'channel':
-        is_channel = True
-    elif query.message.chat.username and CHANNEL_ID.replace("@", "") == query.message.chat.username:
-        is_channel = True
+    is_channel = query.message.chat.type == 'channel' or (
+        query.message.chat.username and CHANNEL_ID.replace("@", "") == query.message.chat.username
+    )
     
     if is_channel:
-        # Для канала: отправляем новое сообщение и только потом удаляем старое
+        # УЛУЧШЕНИЕ: Для канала обеспечиваем плавный переход без мерцания
+        message_ids = load_message_ids()
+        
+        # Отправляем новое сообщение без уведомления
+        new_message = await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
+            disable_notification=True  # Важно: отключаем уведомления
+        )
+        
+        # Сохраняем ID нового сообщения
+        message_ids[message_key] = new_message.message_id
+        
+        # Обновляем список сообщений
+        if "all_messages" not in message_ids:
+            message_ids["all_messages"] = []
+        
+        if new_message.message_id not in message_ids["all_messages"]:
+            message_ids["all_messages"].append(new_message.message_id)
+        
+        # После успешной отправки нового сообщения удаляем старое
+        old_message_id = query.message.message_id
+        if old_message_id != new_message.message_id:
+            try:
+                await context.bot.delete_message(
+                    chat_id=CHANNEL_ID,
+                    message_id=old_message_id
+                )
+                
+                # Удаляем ID из списка всех сообщений
+                if old_message_id in message_ids["all_messages"]:
+                    message_ids["all_messages"].remove(old_message_id)
+            except Exception as e:
+                logger.error(f"Ошибка при удалении старого сообщения: {e}")
+        
+        # Сохраняем обновленный список ID
+        save_message_ids(message_ids)
+    else:
+        # Это личный чат с пользователем
         try:
-            message_ids = load_message_ids()
-            
-            # Отправляем новое сообщение
-            new_message = await context.bot.send_message(
-                chat_id=CHANNEL_ID,
+            await query.edit_message_text(
                 text=message,
                 reply_markup=reply_markup,
-                disable_notification=True  # Отключаем уведомления
+                parse_mode="Markdown"
             )
-            
-            # Сохраняем ID нового сообщения
-            message_ids[message_key] = new_message.message_id
-            
-            # Обновляем список сообщений
-            if "all_messages" not in message_ids:
-                message_ids["all_messages"] = []
-            
-            if new_message.message_id not in message_ids["all_messages"]:
-                message_ids["all_messages"].append(new_message.message_id)
-            
-            # После успешной отправки нового сообщения удаляем старое
-            old_message_id = query.message.message_id
-            if old_message_id != new_message.message_id:  # Проверка чтобы избежать удаления того же сообщения
-                try:
-                    await context.bot.delete_message(
-                        chat_id=CHANNEL_ID,
-                        message_id=old_message_id
-                    )
-                    
-                    # Удаляем ID из списка всех сообщений
-                    if old_message_id in message_ids["all_messages"]:
-                        message_ids["all_messages"].remove(old_message_id)
-                except Exception as e:
-                    logger.error(f"Ошибка при удалении старого сообщения: {e}")
-            
-            # Сохраняем обновленный список ID
-            save_message_ids(message_ids)
-            
         except Exception as e:
-            logger.error(f"Ошибка при отправке сообщения в канал: {e}")
-            # Как запасной вариант используем стандартную функцию
-            await send_to_channel(context, message, reply_markup, message_key)
-    else:
-        # Это личный чат с пользователем, обновляем сообщение напрямую
-        await query.edit_message_text(text=message, reply_markup=reply_markup)
+            logger.error(f"Ошибка при обновлении сообщения: {e}")
+            # Запасной вариант
+            await query.message.reply_text(text=message, reply_markup=reply_markup)

@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from telegram.error import TelegramError
 
 # Импортируем утилиты
-from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages
+from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages, send_photo_to_channel
 
 # Импортируем наши обработчики
 from handlers.client import start_command, language_callback, menu_callback
@@ -22,8 +22,11 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+# Константы для путей
+WELCOME_IMAGE_PATH = "media/images/photo.jpg"
+
 async def send_welcome_to_channel(context):
-    """Отправка приветственного сообщения с изображением в канал."""
+    """Отправка приветственного сообщения с изображением в канал без мерцания."""
     logger.info("Отправляем приветственное сообщение с изображением...")
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
     
@@ -47,18 +50,16 @@ async def send_welcome_to_channel(context):
     # Получаем текущие сообщения
     message_ids = load_message_ids()
     
-    # Путь к приветственному изображению
-    welcome_image_path = "media/images/photo.jpg"
-    
     try:
-        # Отправляем изображение с текстом в подписи
-        with open(welcome_image_path, "rb") as photo:
+        # Отправляем изображение с текстом в подписи, отключив уведомления
+        with open(WELCOME_IMAGE_PATH, "rb") as photo:
             message = await context.bot.send_photo(
                 chat_id=CHANNEL_ID,
                 photo=photo,
                 caption=welcome_message,
                 reply_markup=reply_markup,
-                parse_mode="Markdown"
+                parse_mode="Markdown",
+                disable_notification=True  # Отключаем пуши
             )
             
             # Сохраняем ID сообщения
@@ -74,6 +75,7 @@ async def send_welcome_to_channel(context):
             save_message_ids(message_ids)
             
             # Очищаем все сообщения, кроме только что отправленного
+            # (теперь удаление происходит после успешной отправки нового сообщения)
             await clean_all_channel_messages(context, message.message_id, True)
             
             logger.info(f"Отправлено приветственное сообщение с изображением (ID: {message.message_id})")
@@ -81,7 +83,7 @@ async def send_welcome_to_channel(context):
             
     except Exception as e:
         logger.error(f"Ошибка при отправке изображения: {e}")
-        # Если не удалось отправить изображение, отправляем обычное текстовое сообщение
+        # Если не удалось отправить изображение, отправляем обычное текстовое сообщение (тоже без уведомления)
         logger.info("Отправляем текстовое сообщение без изображения...")
         message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
         
