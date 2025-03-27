@@ -138,7 +138,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def send_menu_update(context, chat_id, old_message_id, content, keyboard, message_key, use_photo=False):
     """
     Универсальная функция для всех типов переходов между меню и подменю.
-    Оптимизирована для работы на Android-клиентах.
+    Оптимизирована для быстрой работы на всех клиентах, включая Android.
     
     Args:
         context: Контекст бота
@@ -153,30 +153,26 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
     reply_markup = InlineKeyboardMarkup(keyboard)
     new_message = None
     
-    logger.info(f"Обновление меню: {message_key}, chat_id: {chat_id}, old_message_id: {old_message_id}")
-    
     try:
-        # КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Специальная стратегия для Android-клиентов
-        # Сначала удаляем старое сообщение, ждем небольшую паузу, затем отправляем новое сообщение
+        # Сначала удаляем старое сообщение (если есть)
         if old_message_id:
             try:
-                # 1. Пытаемся удалить старое сообщение
                 await context.bot.delete_message(
                     chat_id=chat_id,
                     message_id=old_message_id
                 )
-                logger.info(f"Предварительно удалено сообщение {old_message_id}")
                 
                 # Удаляем ID из структуры
                 if old_message_id in message_ids.get("all_messages", []):
                     message_ids["all_messages"].remove(old_message_id)
-                    
-                # Критическая пауза для Android - между удалением и отправкой
-                await asyncio.sleep(0.3)
+                
+                # Минимальная пауза для Android - достаточная для обновления, но быстрая
+                await asyncio.sleep(0.1)  # Уменьшена с 0.3 до 0.1 секунды
             except Exception as e:
-                logger.error(f"Не удалось предварительно удалить сообщение {old_message_id}: {e}")
+                # Игнорируем ошибки при удалении
+                pass
         
-        # 2. Теперь отправляем новое сообщение
+        # Отправляем новое сообщение
         if use_photo:
             with open(WELCOME_IMAGE_PATH, "rb") as photo_file:
                 new_message = await context.bot.send_photo(
@@ -196,7 +192,7 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
                 disable_notification=True
             )
         
-        # 3. Сохраняем ID нового сообщения
+        # Сохраняем ID нового сообщения
         if new_message:
             new_message_id = new_message.message_id
             message_ids[message_key] = new_message_id
@@ -206,21 +202,9 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
             
             if new_message_id not in message_ids["all_messages"]:
                 message_ids["all_messages"].append(new_message_id)
-        
-        # 4. Очищаем все лишние сообщения, кроме нового
-        all_messages = message_ids.get("all_messages", []).copy()
-        for msg_id in all_messages:
-            if msg_id != (new_message.message_id if new_message else None):
-                try:
-                    await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
-                    if msg_id in message_ids["all_messages"]:
-                        message_ids["all_messages"].remove(msg_id)
-                except Exception as e:
-                    # Игнорируем ошибки при удалении
-                    pass
-        
-        # 5. Сохраняем обновленную структуру сообщений
-        save_message_ids(message_ids)
+            
+            # Сохраняем обновленную структуру сообщений
+            save_message_ids(message_ids)
     except Exception as e:
         logger.error(f"Ошибка при обновлении меню: {e}")
     
