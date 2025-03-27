@@ -9,7 +9,7 @@ from telegram.error import TelegramError
 from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages, send_photo_to_channel
 
 # Импортируем наши обработчики
-from handlers.client import start_command, language_callback, menu_callback, back_to_main_menu
+from handlers.client import start_command, language_callback, menu_callback
 
 # Настройка логирования
 logging.basicConfig(
@@ -126,7 +126,6 @@ def main() -> None:
     # Обработчики коллбэков от inline кнопок
     application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
     application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
-    application.add_handler(CallbackQueryHandler(back_to_main_menu, pattern=r'^menu_back_'))
     
     # Обработчик для неизвестных команд
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
