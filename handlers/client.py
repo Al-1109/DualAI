@@ -1,6 +1,5 @@
 import os
 import logging
-import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -22,7 +21,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Константы для путей
+# Константы для путей и задержек
 WELCOME_IMAGE_PATH = "media/images/photo.jpg"
 
 # Функция для создания языковых кнопок
@@ -135,6 +134,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора языка."""
     query = update.callback_query
+    # Моментально показываем что нажатие обработано (без задержки)
     await query.answer()
     
     # Получаем выбранный язык и режим из данных колбэка
@@ -174,15 +174,16 @@ async def show_main_menu(query, context, language):
     )
     
     if is_channel:
-        # УНИФИЦИРОВАННЫЙ ПОДХОД: Новое сообщение всегда с фото, отправка выполняется сразу, 
-        # потом удаление старого для всех типов переходов
+        # УНИФИЦИРОВАННЫЙ ПОДХОД ДЛЯ КАНАЛОВ - 
+        # 1. Сначала готовим все структуры данных
         message_ids = load_message_ids()
         message_key = f"main_menu_{language}"
+        old_message_id = query.message.message_id
         
+        # 2. Сразу отправляем новое сообщение (это наиболее быстрая операция)
         try:
-            # Создаем и отправляем сообщение с изображением без уведомления
             with open(WELCOME_IMAGE_PATH, "rb") as photo_file:
-                message = await context.bot.send_photo(
+                new_message = await context.bot.send_photo(
                     chat_id=CHANNEL_ID,
                     photo=photo_file,
                     caption=menu_content,
@@ -191,35 +192,64 @@ async def show_main_menu(query, context, language):
                     disable_notification=True  # Отключаем уведомления
                 )
             
-            # Сохраняем ID нового сообщения сразу
-            message_ids[message_key] = message.message_id
+            # 3. Сразу сохраняем ID нового сообщения, прежде чем что-либо ещё делать
+            new_message_id = new_message.message_id
+            message_ids[message_key] = new_message_id
             if "all_messages" not in message_ids:
                 message_ids["all_messages"] = []
-            if message.message_id not in message_ids["all_messages"]:
-                message_ids["all_messages"].append(message.message_id)
-            save_message_ids(message_ids)  # Важно сохранить до удаления старого
+            if new_message_id not in message_ids["all_messages"]:
+                message_ids["all_messages"].append(new_message_id)
             
-            # Теперь удаляем старое сообщение
-            try:
-                old_message_id = query.message.message_id
-                if old_message_id != message.message_id:  # Проверка чтобы не удалять то же самое
+            # 4. Сохраняем изменения до удаления старого сообщения
+            save_message_ids(message_ids)
+            
+            # 5. Только теперь удаляем старое сообщение
+            if old_message_id != new_message_id:
+                try:
                     await context.bot.delete_message(
                         chat_id=CHANNEL_ID,
                         message_id=old_message_id
                     )
                     
-                    # Обновляем список всех сообщений
+                    # Удаляем ID из списка после удаления
                     if old_message_id in message_ids["all_messages"]:
                         message_ids["all_messages"].remove(old_message_id)
-                    save_message_ids(message_ids)
-            except Exception as e:
-                logger.error(f"Ошибка при удалении старого сообщения: {e}")
+                        save_message_ids(message_ids)  # Сохраняем обновленную структуру
+                except Exception as e:
+                    logger.error(f"Ошибка при удалении старого сообщения: {e}")
             
         except Exception as e:
             logger.error(f"Ошибка при отправке фото в канал: {e}")
-            # Резервный вариант с обычным сообщением
-            message = await send_to_channel(context, menu_content, reply_markup, message_key)
-            
+            # Запасной вариант: отправляем обычное сообщение, но с тем же унифицированным подходом
+            try:
+                new_message = await context.bot.send_message(
+                    chat_id=CHANNEL_ID,
+                    text=menu_content,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown",
+                    disable_notification=True
+                )
+                
+                # Сохраняем сразу
+                message_ids[message_key] = new_message.message_id
+                if "all_messages" not in message_ids:
+                    message_ids["all_messages"] = []
+                if new_message.message_id not in message_ids["all_messages"]:
+                    message_ids["all_messages"].append(new_message.message_id)
+                save_message_ids(message_ids)
+                
+                # Удаляем старое сообщение
+                if old_message_id != new_message.message_id:
+                    await context.bot.delete_message(
+                        chat_id=CHANNEL_ID,
+                        message_id=old_message_id
+                    )
+                    
+                    if old_message_id in message_ids["all_messages"]:
+                        message_ids["all_messages"].remove(old_message_id)
+                        save_message_ids(message_ids)
+            except Exception as inner_e:
+                logger.error(f"Критическая ошибка при обработке: {inner_e}")
     else:
         # Это личный чат с пользователем
         try:
@@ -244,12 +274,14 @@ async def show_main_menu(query, context, language):
             except Exception:
                 await query.message.reply_text(
                     text=menu_content,
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
                 )
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора пункта меню."""
     query = update.callback_query
+    # Мгновенно отвечаем на запрос для быстрой обратной связи
     await query.answer()
     
     # Получаем выбранный пункт меню и язык пользователя
@@ -325,39 +357,41 @@ async def show_submenu_page(query, context, page, language):
     )
     
     if is_channel:
-        # УНИФИЦИРОВАННЫЙ ПОДХОД: Быстро отправляем новое, потом удаляем старое
+        # УНИФИЦИРОВАННЫЙ ПОДХОД ДЛЯ КАНАЛОВ -
+        # Одинаковые шаги для всех операций с каналом
         message_ids = load_message_ids()
+        old_message_id = query.message.message_id
         
-        # 1. Сначала создаем и отправляем новое сообщение без уведомления
+        # 1. Отправляем новое сообщение (самая быстрая операция)
         new_message = await context.bot.send_message(
             chat_id=CHANNEL_ID,
             text=message,
             reply_markup=reply_markup,
             parse_mode="Markdown",
-            disable_notification=True  # Важно: отключаем уведомления всегда
+            disable_notification=True  # Всегда отключаем уведомления
         )
         
-        # 2. Сразу сохраняем ID нового сообщения в структуру, чтобы оно не было удалено случайно
-        message_ids[message_key] = new_message.message_id
+        # 2. Сразу сохраняем ID нового сообщения
+        new_message_id = new_message.message_id
+        message_ids[message_key] = new_message_id
         if "all_messages" not in message_ids:
             message_ids["all_messages"] = []
-        if new_message.message_id not in message_ids["all_messages"]:
-            message_ids["all_messages"].append(new_message.message_id)
-        save_message_ids(message_ids)  # Важно сохранить до удаления старого
+        if new_message_id not in message_ids["all_messages"]:
+            message_ids["all_messages"].append(new_message_id)
+        save_message_ids(message_ids)  # Сохраняем структуру до удаления
         
-        # 3. Теперь можно удалить старое сообщение
-        old_message_id = query.message.message_id
-        if old_message_id != new_message.message_id:  # Проверка чтобы не удалять то же самое
+        # 3. Теперь удаляем старое сообщение
+        if old_message_id != new_message_id:  # Проверка для безопасности
             try:
                 await context.bot.delete_message(
                     chat_id=CHANNEL_ID,
                     message_id=old_message_id
                 )
                 
-                # Обновляем список всех сообщений после успешного удаления
+                # Удаляем ID из списка после успешного удаления
                 if old_message_id in message_ids["all_messages"]:
                     message_ids["all_messages"].remove(old_message_id)
-                save_message_ids(message_ids)
+                    save_message_ids(message_ids)  # Сохраняем обновление
             except Exception as e:
                 logger.error(f"Ошибка при удалении старого сообщения: {e}")
     else:
