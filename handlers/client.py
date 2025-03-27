@@ -157,10 +157,13 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             return
     
     # В остальных случаях показываем главное меню
-    await show_main_menu(query, context, language)
+    # КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: используем быструю версию перехода в главное меню
+    await show_main_menu_fast(query, context, language)
 
-async def show_main_menu(query, context, language):
-    """Показывает главное меню на выбранном языке с фотографией (унифицированный быстрый переход)"""
+async def show_main_menu_fast(query, context, language):
+    """
+    Быстрая версия показа главного меню без загрузки фото - для быстрых переходов из подменю
+    """
     menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
     keyboard = create_menu_keyboard(language)
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -174,13 +177,90 @@ async def show_main_menu(query, context, language):
     )
     
     if is_channel:
-        # УНИФИЦИРОВАННЫЙ ПОДХОД ДЛЯ КАНАЛОВ - 
-        # 1. Сначала готовим все структуры данных
+        # УНИФИЦИРОВАННЫЙ ПОДХОД: Сначала отправляем, потом удаляем
         message_ids = load_message_ids()
         message_key = f"main_menu_{language}"
         old_message_id = query.message.message_id
         
-        # 2. Сразу отправляем новое сообщение (это наиболее быстрая операция)
+        # 1. Отправляем новое сообщение с текстом (быстрая операция)
+        try:
+            # ВАЖНО: Использование только send_message для быстроты
+            new_message = await context.bot.send_message(
+                chat_id=CHANNEL_ID,
+                text=menu_content,
+                reply_markup=reply_markup,
+                parse_mode="Markdown",
+                disable_notification=True  # Отключаем уведомления
+            )
+            
+            # 2. Сразу сохраняем ID нового сообщения
+            new_message_id = new_message.message_id
+            message_ids[message_key] = new_message_id
+            if "all_messages" not in message_ids:
+                message_ids["all_messages"] = []
+            if new_message_id not in message_ids["all_messages"]:
+                message_ids["all_messages"].append(new_message_id)
+            
+            # 3. Сохраняем изменения до удаления старого сообщения
+            save_message_ids(message_ids)
+            
+            # 4. Только теперь удаляем старое сообщение
+            if old_message_id != new_message_id:
+                try:
+                    await context.bot.delete_message(
+                        chat_id=CHANNEL_ID,
+                        message_id=old_message_id
+                    )
+                    
+                    if old_message_id in message_ids["all_messages"]:
+                        message_ids["all_messages"].remove(old_message_id)
+                        save_message_ids(message_ids)
+                except Exception as e:
+                    logger.error(f"Ошибка при удалении старого сообщения: {e}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения в канал: {e}")
+    else:
+        # Это личный чат с пользователем
+        try:
+            await query.edit_message_text(
+                text=menu_content,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении сообщения в чате: {e}")
+            try:
+                await query.message.reply_text(
+                    text=menu_content,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+            except Exception:
+                pass
+
+async def show_main_menu(query, context, language):
+    """Показывает главное меню с фотографией для начальных переходов или когда нужна фотография"""
+    # Эта функция используется только при начальной загрузке (когда нужна фотография)
+    menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
+    keyboard = create_menu_keyboard(language)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Обновляем текущую страницу
+    context.user_data['current_page'] = 'main_menu'
+    
+    # Проверяем, является ли это сообщение сообщением канала
+    is_channel = query.message.chat.type == 'channel' or (
+        query.message.chat.username and CHANNEL_ID.replace("@", "") == query.message.chat.username
+    )
+    
+    if is_channel:
+        # УНИФИЦИРОВАННЫЙ ПОДХОД ДЛЯ КАНАЛОВ
+        message_ids = load_message_ids()
+        message_key = f"main_menu_{language}"
+        old_message_id = query.message.message_id
+        
+        # Сразу отправляем новое сообщение с фото
         try:
             with open(WELCOME_IMAGE_PATH, "rb") as photo_file:
                 new_message = await context.bot.send_photo(
@@ -192,54 +272,18 @@ async def show_main_menu(query, context, language):
                     disable_notification=True  # Отключаем уведомления
                 )
             
-            # 3. Сразу сохраняем ID нового сообщения, прежде чем что-либо ещё делать
+            # Сразу сохраняем ID нового сообщения
             new_message_id = new_message.message_id
             message_ids[message_key] = new_message_id
             if "all_messages" not in message_ids:
                 message_ids["all_messages"] = []
             if new_message_id not in message_ids["all_messages"]:
                 message_ids["all_messages"].append(new_message_id)
-            
-            # 4. Сохраняем изменения до удаления старого сообщения
             save_message_ids(message_ids)
             
-            # 5. Только теперь удаляем старое сообщение
+            # Только теперь удаляем старое сообщение
             if old_message_id != new_message_id:
                 try:
-                    await context.bot.delete_message(
-                        chat_id=CHANNEL_ID,
-                        message_id=old_message_id
-                    )
-                    
-                    # Удаляем ID из списка после удаления
-                    if old_message_id in message_ids["all_messages"]:
-                        message_ids["all_messages"].remove(old_message_id)
-                        save_message_ids(message_ids)  # Сохраняем обновленную структуру
-                except Exception as e:
-                    logger.error(f"Ошибка при удалении старого сообщения: {e}")
-            
-        except Exception as e:
-            logger.error(f"Ошибка при отправке фото в канал: {e}")
-            # Запасной вариант: отправляем обычное сообщение, но с тем же унифицированным подходом
-            try:
-                new_message = await context.bot.send_message(
-                    chat_id=CHANNEL_ID,
-                    text=menu_content,
-                    reply_markup=reply_markup,
-                    parse_mode="Markdown",
-                    disable_notification=True
-                )
-                
-                # Сохраняем сразу
-                message_ids[message_key] = new_message.message_id
-                if "all_messages" not in message_ids:
-                    message_ids["all_messages"] = []
-                if new_message.message_id not in message_ids["all_messages"]:
-                    message_ids["all_messages"].append(new_message.message_id)
-                save_message_ids(message_ids)
-                
-                # Удаляем старое сообщение
-                if old_message_id != new_message.message_id:
                     await context.bot.delete_message(
                         chat_id=CHANNEL_ID,
                         message_id=old_message_id
@@ -248,8 +292,13 @@ async def show_main_menu(query, context, language):
                     if old_message_id in message_ids["all_messages"]:
                         message_ids["all_messages"].remove(old_message_id)
                         save_message_ids(message_ids)
-            except Exception as inner_e:
-                logger.error(f"Критическая ошибка при обработке: {inner_e}")
+                except Exception as e:
+                    logger.error(f"Ошибка при удалении старого сообщения: {e}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при отправке фото в канал: {e}")
+            # Запасной вариант - отправляем текстовое сообщение
+            await show_main_menu_fast(query, context, language)
     else:
         # Это личный чат с пользователем
         try:
@@ -274,8 +323,7 @@ async def show_main_menu(query, context, language):
             except Exception:
                 await query.message.reply_text(
                     text=menu_content,
-                    reply_markup=reply_markup,
-                    parse_mode="Markdown"
+                    reply_markup=reply_markup
                 )
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -341,7 +389,9 @@ async def show_submenu_page(query, context, page, language):
         'ru': "🔙 Вернуться в Главное Меню"
     }
     
-    keyboard = [[InlineKeyboardButton(back_button_text.get(language, "🔙 Back"), callback_data=f"lang_{language}_main")]]
+    # ВАЖНОЕ ИЗМЕНЕНИЕ: Теперь кнопка возврата использует специальный callback_data формат
+    # menu_back_{language} вместо lang_{language}_main
+    keyboard = [[InlineKeyboardButton(back_button_text.get(language, "🔙 Back"), callback_data=f"menu_back_{language}")]]
     
     # Добавляем языковые кнопки внизу
     keyboard.extend(create_language_buttons())
@@ -357,8 +407,7 @@ async def show_submenu_page(query, context, page, language):
     )
     
     if is_channel:
-        # УНИФИЦИРОВАННЫЙ ПОДХОД ДЛЯ КАНАЛОВ -
-        # Одинаковые шаги для всех операций с каналом
+        # УНИФИЦИРОВАННЫЙ ПОДХОД для всех операций с каналом
         message_ids = load_message_ids()
         old_message_id = query.message.message_id
         
@@ -410,3 +459,19 @@ async def show_submenu_page(query, context, page, language):
                 reply_markup=reply_markup,
                 parse_mode="Markdown"
             )
+
+# Новая функция для обработки нажатия кнопки "Назад в главное меню"
+async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Специальный быстрый обработчик возврата в главное меню."""
+    query = update.callback_query
+    # Моментально показываем что нажатие обработано
+    await query.answer()
+    
+    # Получаем язык из данных колбэка
+    language = query.data.split('_')[2]
+    
+    # Обновляем текущую страницу пользователя
+    context.user_data['current_page'] = 'main_menu'
+    
+    # Используем быструю версию показа главного меню без фото
+    await show_main_menu_fast(query, context, language)
