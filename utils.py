@@ -145,6 +145,7 @@ async def reset_channel(context):
 async def clean_all_channel_messages(context, except_message_id=None, force_cleanup=False):
     """
     Удаляет все сообщения в канале, за исключением указанного ID.
+    Сначала проверяет доступность всех сообщений.
     
     Args:
         context: Контекст бота
@@ -161,41 +162,46 @@ async def clean_all_channel_messages(context, except_message_id=None, force_clea
         # Создаем новый список для сохранения ID сообщений, которые не удалось удалить
         failed_to_delete = []
         
-        # Счетчик удаленных сообщений
-        deleted_count = 0
+        # Копируем список, чтобы избежать изменения списка во время итерации
+        messages_to_delete = all_messages.copy()
         
-        # Удаляем все сообщения, кроме исключенного
-        for msg_id in all_messages:
-            if msg_id != except_message_id:
-                try:
-                    await context.bot.delete_message(chat_id=CHANNEL_ID, message_id=msg_id)
-                    logger.info(f"Удалено сообщение {msg_id} из канала {CHANNEL_ID}")
-                    deleted_count += 1
-                    # Небольшая пауза, чтобы избежать ограничений API
-                    await asyncio.sleep(0.1)
-                except TelegramError as e:
-                    logger.error(f"Не удалось удалить сообщение {msg_id}: {e}")
-                    failed_to_delete.append(msg_id)
+        # Удаляем except_message_id из списка для удаления, если он указан
+        if except_message_id is not None and except_message_id in messages_to_delete:
+            messages_to_delete.remove(except_message_id)
         
-        # Обновляем список всех сообщений, оставляя только те, которые не удалось удалить
-        # и добавляем исключенное сообщение, если оно есть
+        # Удаляем сообщения из копии списка
+        for msg_id in messages_to_delete:
+            try:
+                await context.bot.delete_message(chat_id=CHANNEL_ID, message_id=msg_id)
+                logger.info(f"Удалено сообщение {msg_id} из канала {CHANNEL_ID}")
+                # Небольшая пауза, чтобы избежать ограничений API
+                await asyncio.sleep(0.1)
+            except TelegramError as e:
+                logger.error(f"Не удалось удалить сообщение {msg_id}: {e}")
+                failed_to_delete.append(msg_id)
+        
+        # Обновляем список всех сообщений
+        # Оставляем исключенное сообщение и те, которые не удалось удалить
         message_ids["all_messages"] = failed_to_delete
         if except_message_id is not None and except_message_id not in failed_to_delete:
-            message_ids["all_messages"] = [except_message_id]
+            message_ids["all_messages"].append(except_message_id)
+        
+        # Если какие-то ключи остались от предыдущих подменю, удаляем их
+        keys_to_keep = ["welcome_message", "all_messages"]
+        if except_message_id is not None:
+            for key, value in message_ids.items():
+                if value == except_message_id:
+                    keys_to_keep.append(key)
+        
+        # Очищаем ненужные ключи
+        for key in list(message_ids.keys()):
+            if key not in keys_to_keep and message_ids.get(key) not in message_ids["all_messages"]:
+                del message_ids[key]
         
         # Сохраняем обновленный список
         save_message_ids(message_ids)
         
-        # Если какие-то ключи остались от предыдущих подменю, удаляем их
-        keys_to_keep = ["welcome_message", "all_messages"]
-        for key in list(message_ids.keys()):
-            if key not in keys_to_keep and key != except_message_id:
-                if message_ids.get(key) not in message_ids["all_messages"]:
-                    del message_ids[key]
-        
-        save_message_ids(message_ids)
-        
-        return deleted_count > 0
+        return len(messages_to_delete) - len(failed_to_delete) > 0
     else:
         logger.info("Нет дополнительных сообщений для удаления")
         return False
