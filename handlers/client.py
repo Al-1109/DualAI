@@ -103,11 +103,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Сбрасываем текущую страницу пользователя
     context.user_data['current_page'] = 'welcome'
     
-    # Отправляем приветственное сообщение с клавиатурой
-    await update.message.reply_text(
-        text=welcome_message,
-        reply_markup=reply_markup
-    )
+    # Путь к приветственному изображению
+    welcome_image_path = "media/images/photo.jpg"
+    
+    try:
+        # Отправляем фото с текстом в подписи
+        with open(welcome_image_path, "rb") as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption=welcome_message,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при отправке изображения: {e}")
+        # В случае ошибки отправляем обычное текстовое сообщение
+        await update.message.reply_text(
+            text=welcome_message,
+            reply_markup=reply_markup
+        )
 
 async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора языка."""
@@ -143,15 +157,98 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     # Проверяем, является ли это сообщение сообщением канала
     if query.message.chat.id == CHANNEL_ID:
-        # Используем функцию send_to_channel для обновления сообщения в канале
-        message_key = f"main_menu_{language}"
-        await send_to_channel(context, menu_content, reply_markup, message_key)
+        message_ids = load_message_ids()
+        # Путь к изображению для языкового меню
+        language_image_path = "media/images/photo.jpg"
+        
+        try:
+            # Если предыдущее сообщение содержало фото
+            if query.message.photo:
+                # Для изменения сообщения с фото нужно удалить старое и отправить новое
+                try:
+                    # Удаляем старое сообщение
+                    await context.bot.delete_message(
+                        chat_id=CHANNEL_ID,
+                        message_id=query.message.message_id
+                    )
+                    
+                    # Удаляем ID из списка всех сообщений
+                    if query.message.message_id in message_ids.get("all_messages", []):
+                        message_ids["all_messages"].remove(query.message.message_id)
+                except Exception as e:
+                    logger.error(f"Ошибка при удалении предыдущего сообщения: {e}")
+                
+                # Отправляем новое сообщение с фото
+                with open(language_image_path, "rb") as photo:
+                    new_message = await context.bot.send_photo(
+                        chat_id=CHANNEL_ID,
+                        photo=photo,
+                        caption=menu_content,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+                
+                # Обновляем ID сообщения
+                message_key = f"main_menu_{language}"
+                message_ids[message_key] = new_message.message_id
+                
+                # Обновляем список всех сообщений
+                if new_message.message_id not in message_ids["all_messages"]:
+                    message_ids["all_messages"].append(new_message.message_id)
+                
+                save_message_ids(message_ids)
+            else:
+                # Текущее сообщение без фото, удаляем его и отправляем новое с фото
+                try:
+                    # Удаляем старое сообщение
+                    await context.bot.delete_message(
+                        chat_id=CHANNEL_ID,
+                        message_id=query.message.message_id
+                    )
+                    
+                    # Удаляем ID из списка всех сообщений
+                    if query.message.message_id in message_ids.get("all_messages", []):
+                        message_ids["all_messages"].remove(query.message.message_id)
+                except Exception as e:
+                    logger.error(f"Ошибка при удалении предыдущего сообщения: {e}")
+                
+                # Отправляем новое сообщение с фото
+                with open(language_image_path, "rb") as photo:
+                    new_message = await context.bot.send_photo(
+                        chat_id=CHANNEL_ID,
+                        photo=photo,
+                        caption=menu_content,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+                
+                # Обновляем ID сообщения
+                message_key = f"main_menu_{language}"
+                message_ids[message_key] = new_message.message_id
+                
+                # Обновляем список всех сообщений
+                if new_message.message_id not in message_ids["all_messages"]:
+                    message_ids["all_messages"].append(new_message.message_id)
+                
+                save_message_ids(message_ids)
+        except Exception as e:
+            logger.error(f"Ошибка при работе с изображением: {e}")
+            # В случае ошибки используем обычный текстовый метод
+            await send_to_channel(context, menu_content, reply_markup, f"main_menu_{language}")
     else:
         # Это личный чат с пользователем, обновляем сообщение напрямую
-        await query.edit_message_text(
-            text=menu_content,
-            reply_markup=reply_markup
-        )
+        try:
+            await query.edit_message_text(
+                text=menu_content,
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении сообщения в личном чате: {e}")
+            # Если не удалось обновить, отправляем новое
+            await query.message.reply_text(
+                text=menu_content,
+                reply_markup=reply_markup
+            )
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора пункта меню."""
