@@ -163,14 +163,49 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # Обновляем текущую страницу
     context.user_data['current_page'] = 'main_menu'
     
-    # Проверяем, является ли это сообщение в канале
-    if query.message.chat.id == int(CHANNEL_ID.replace("@", "")) or query.message.chat.username == CHANNEL_ID.replace("@", ""):
-        # Очищаем все сообщения в канале перед отправкой нового
+    # Проверяем, является ли это сообщение сообщением канала
+    is_channel = False
+    if query.message.chat.type == 'channel':
+        is_channel = True
+    elif query.message.chat.username and CHANNEL_ID.replace("@", "") == query.message.chat.username:
+        is_channel = True
+    
+    if is_channel:
+        # Сначала очищаем все сообщения в канале
         await clean_all_channel_messages(context, None, True)
         
-        # Отправляем новое сообщение с изображением
+        # Затем отправляем новое сообщение с фото
         language_image_path = "media/images/photo.jpg"
-        await send_photo_to_channel(context, language_image_path, menu_content, reply_markup, f"main_menu_{language}")
+        try:
+            with open(language_image_path, "rb") as photo_file:
+                message = await context.bot.send_photo(
+                    chat_id=CHANNEL_ID,
+                    photo=photo_file,
+                    caption=menu_content,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+                
+                # Сохраняем ID нового сообщения
+                message_ids = load_message_ids()
+                message_key = f"main_menu_{language}"
+                message_ids[message_key] = message.message_id
+                
+                # Добавляем ID в список всех сообщений
+                if "all_messages" not in message_ids:
+                    message_ids["all_messages"] = []
+                
+                if message.message_id not in message_ids["all_messages"]:
+                    message_ids["all_messages"].append(message.message_id)
+                
+                # Сохраняем обновленный список ID
+                save_message_ids(message_ids)
+                
+                logger.info(f"Отправлено новое сообщение с фото {message_key} (ID: {message.message_id})")
+        except Exception as e:
+            logger.error(f"Ошибка отправки фото в канал: {e}")
+            # В случае ошибки пытаемся отправить обычное текстовое сообщение
+            await send_to_channel(context, menu_content, reply_markup, f"main_menu_{language}")
     else:
         # Это личный чат с пользователем
         try:
@@ -272,7 +307,13 @@ async def show_submenu_page(query, context, page, language):
     message_key = f"{page}_{language}"
     
     # Проверяем, является ли это сообщение сообщением канала
-    if query.message.chat.id == int(CHANNEL_ID.replace("@", "")) or query.message.chat.username == CHANNEL_ID.replace("@", ""):
+    is_channel = False
+    if query.message.chat.type == 'channel':
+        is_channel = True
+    elif query.message.chat.username and CHANNEL_ID.replace("@", "") == query.message.chat.username:
+        is_channel = True
+    
+    if is_channel:
         # Используем функцию send_to_channel для обновления сообщения в канале
         await send_to_channel(context, message, reply_markup, message_key)
     else:
