@@ -138,7 +138,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def send_menu_update(context, chat_id, old_message_id, content, keyboard, message_key, use_photo=False):
     """
     Универсальная функция для всех типов переходов между меню и подменю.
-    Исправлена для корректного удаления сообщений на всех клиентах.
+    Оптимизирована для работы на Android-клиентах.
     
     Args:
         context: Контекст бота
@@ -149,16 +149,34 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
         message_key: Ключ для сохранения ID сообщения
         use_photo: Использовать фото (True) или только текст (False)
     """
-    # Загружаем текущую структуру ID сообщений
     message_ids = load_message_ids()
     reply_markup = InlineKeyboardMarkup(keyboard)
     new_message = None
     
-    # Выводим явный лог начала операции
-    logger.info(f"Начинаем обновление меню: {message_key}, chat_id: {chat_id}, old_message_id: {old_message_id}")
+    logger.info(f"Обновление меню: {message_key}, chat_id: {chat_id}, old_message_id: {old_message_id}")
     
     try:
-        # 1. Отправляем новое сообщение
+        # КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Специальная стратегия для Android-клиентов
+        # Сначала удаляем старое сообщение, ждем небольшую паузу, затем отправляем новое сообщение
+        if old_message_id:
+            try:
+                # 1. Пытаемся удалить старое сообщение
+                await context.bot.delete_message(
+                    chat_id=chat_id,
+                    message_id=old_message_id
+                )
+                logger.info(f"Предварительно удалено сообщение {old_message_id}")
+                
+                # Удаляем ID из структуры
+                if old_message_id in message_ids.get("all_messages", []):
+                    message_ids["all_messages"].remove(old_message_id)
+                    
+                # Критическая пауза для Android - между удалением и отправкой
+                await asyncio.sleep(0.3)
+            except Exception as e:
+                logger.error(f"Не удалось предварительно удалить сообщение {old_message_id}: {e}")
+        
+        # 2. Теперь отправляем новое сообщение
         if use_photo:
             with open(WELCOME_IMAGE_PATH, "rb") as photo_file:
                 new_message = await context.bot.send_photo(
@@ -169,7 +187,6 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
                     parse_mode="Markdown",
                     disable_notification=True
                 )
-                logger.info(f"Отправлено новое сообщение с фото, ID: {new_message.message_id}")
         else:
             new_message = await context.bot.send_message(
                 chat_id=chat_id,
@@ -178,9 +195,8 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
                 parse_mode="Markdown",
                 disable_notification=True
             )
-            logger.info(f"Отправлено новое текстовое сообщение, ID: {new_message.message_id}")
         
-        # 2. Сохраняем новое сообщение в базу
+        # 3. Сохраняем ID нового сообщения
         if new_message:
             new_message_id = new_message.message_id
             message_ids[message_key] = new_message_id
@@ -190,53 +206,24 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
             
             if new_message_id not in message_ids["all_messages"]:
                 message_ids["all_messages"].append(new_message_id)
-            
-            # Сразу сохраняем, чтобы не потерять ID нового сообщения
-            save_message_ids(message_ids)
-            
-            # 3. Принудительно удаляем старое сообщение, если оно есть
-            if old_message_id and old_message_id != new_message_id:
-                # Используем прямой вызов API удаления
-                logger.info(f"Пытаемся удалить старое сообщение, ID: {old_message_id}")
-                
-                # Прямое удаление с проверкой
+        
+        # 4. Очищаем все лишние сообщения, кроме нового
+        all_messages = message_ids.get("all_messages", []).copy()
+        for msg_id in all_messages:
+            if msg_id != (new_message.message_id if new_message else None):
                 try:
-                    result = await context.bot.delete_message(
-                        chat_id=chat_id,
-                        message_id=old_message_id
-                    )
-                    logger.info(f"Результат удаления сообщения {old_message_id}: {result}")
-                except Exception as delete_error:
-                    logger.error(f"Ошибка при удалении сообщения {old_message_id}: {delete_error}")
-                
-                # Независимо от успеха удаления, обновляем список сообщений
-                if old_message_id in message_ids["all_messages"]:
-                    message_ids["all_messages"].remove(old_message_id)
-                    logger.info(f"Удалили ID {old_message_id} из списка всех сообщений")
-                    save_message_ids(message_ids)
-            
-            # 4. Дополнительно очищаем все старые сообщения, кроме нового
-            try:
-                all_messages = message_ids.get("all_messages", []).copy()
-                for msg_id in all_messages:
-                    if msg_id != new_message_id:
-                        try:
-                            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
-                            logger.info(f"Удалено дополнительное сообщение {msg_id}")
-                            if msg_id in message_ids["all_messages"]:
-                                message_ids["all_messages"].remove(msg_id)
-                        except Exception as e:
-                            logger.error(f"Не удалось удалить сообщение {msg_id}: {e}")
-                
-                # Обновляем список сообщений после очистки
-                save_message_ids(message_ids)
-            except Exception as clean_error:
-                logger.error(f"Ошибка при дополнительной очистке: {clean_error}")
-                
+                    await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                    if msg_id in message_ids["all_messages"]:
+                        message_ids["all_messages"].remove(msg_id)
+                except Exception as e:
+                    # Игнорируем ошибки при удалении
+                    pass
+        
+        # 5. Сохраняем обновленную структуру сообщений
+        save_message_ids(message_ids)
     except Exception as e:
-        logger.error(f"Критическая ошибка при обновлении меню: {e}")
+        logger.error(f"Ошибка при обновлении меню: {e}")
     
-    # Возвращаем новое сообщение для дальнейшего использования
     return new_message
 
 async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
