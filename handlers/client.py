@@ -3,8 +3,16 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-# Импортируем функции из utils вместо bot
-from utils import send_to_channel, CHANNEL_ID, load_content_file
+# Импортируем функции из utils
+from utils import (
+    send_to_channel, 
+    CHANNEL_ID, 
+    load_content_file, 
+    save_message_ids, 
+    load_message_ids,
+    clean_all_channel_messages,
+    send_photo_to_channel
+)
 
 # Настройка логирования
 logging.basicConfig(
@@ -155,8 +163,8 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # Обновляем текущую страницу
     context.user_data['current_page'] = 'main_menu'
     
-    # Проверяем, является ли это сообщение сообщением канала
-    if query.message.chat.id == CHANNEL_ID:
+    # Проверяем, является ли это сообщение в канале
+    if query.message.chat.id == int(CHANNEL_ID.replace("@", "")) or query.message.chat.username == CHANNEL_ID.replace("@", ""):
         # Очищаем все сообщения в канале перед отправкой нового
         await clean_all_channel_messages(context, None, True)
         
@@ -264,7 +272,7 @@ async def show_submenu_page(query, context, page, language):
     message_key = f"{page}_{language}"
     
     # Проверяем, является ли это сообщение сообщением канала
-    if query.message.chat.id == CHANNEL_ID:
+    if query.message.chat.id == int(CHANNEL_ID.replace("@", "")) or query.message.chat.username == CHANNEL_ID.replace("@", ""):
         # Используем функцию send_to_channel для обновления сообщения в канале
         await send_to_channel(context, message, reply_markup, message_key)
     else:
