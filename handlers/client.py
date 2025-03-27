@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -159,7 +160,7 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await show_main_menu(query, context, language)
 
 async def show_main_menu(query, context, language):
-    """Показывает главное меню на выбранном языке с фотографией"""
+    """Показывает главное меню на выбранном языке с фотографией (унифицированный быстрый переход)"""
     menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
     keyboard = create_menu_keyboard(language)
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -173,12 +174,13 @@ async def show_main_menu(query, context, language):
     )
     
     if is_channel:
-        # УЛУЧШЕНИЕ: Всегда отправляем новое сообщение с фото и только потом удаляем старое
+        # УНИФИЦИРОВАННЫЙ ПОДХОД: Новое сообщение всегда с фото, отправка выполняется сразу, 
+        # потом удаление старого для всех типов переходов
         message_ids = load_message_ids()
         message_key = f"main_menu_{language}"
         
-        # Отправляем новое сообщение с фото без уведомления
         try:
+            # Создаем и отправляем сообщение с изображением без уведомления
             with open(WELCOME_IMAGE_PATH, "rb") as photo_file:
                 message = await context.bot.send_photo(
                     chat_id=CHANNEL_ID,
@@ -189,37 +191,35 @@ async def show_main_menu(query, context, language):
                     disable_notification=True  # Отключаем уведомления
                 )
             
-            # Сохраняем ID нового сообщения
+            # Сохраняем ID нового сообщения сразу
             message_ids[message_key] = message.message_id
-            
-            # Обновляем список сообщений
             if "all_messages" not in message_ids:
                 message_ids["all_messages"] = []
-            
             if message.message_id not in message_ids["all_messages"]:
                 message_ids["all_messages"].append(message.message_id)
+            save_message_ids(message_ids)  # Важно сохранить до удаления старого
             
-            # Удаляем старое сообщение ПОСЛЕ отправки нового
+            # Теперь удаляем старое сообщение
             try:
                 old_message_id = query.message.message_id
-                await context.bot.delete_message(
-                    chat_id=CHANNEL_ID,
-                    message_id=old_message_id
-                )
-                
-                # Удаляем ID из списка всех сообщений
-                if old_message_id in message_ids["all_messages"]:
-                    message_ids["all_messages"].remove(old_message_id)
+                if old_message_id != message.message_id:  # Проверка чтобы не удалять то же самое
+                    await context.bot.delete_message(
+                        chat_id=CHANNEL_ID,
+                        message_id=old_message_id
+                    )
+                    
+                    # Обновляем список всех сообщений
+                    if old_message_id in message_ids["all_messages"]:
+                        message_ids["all_messages"].remove(old_message_id)
+                    save_message_ids(message_ids)
             except Exception as e:
                 logger.error(f"Ошибка при удалении старого сообщения: {e}")
             
-            # Сохраняем обновленный список ID
-            save_message_ids(message_ids)
-            
         except Exception as e:
             logger.error(f"Ошибка при отправке фото в канал: {e}")
-            # Используем запасной вариант - текстовое сообщение
-            await send_to_channel(context, menu_content, reply_markup, message_key)
+            # Резервный вариант с обычным сообщением
+            message = await send_to_channel(context, menu_content, reply_markup, message_key)
+            
     else:
         # Это личный чат с пользователем
         try:
@@ -231,7 +231,6 @@ async def show_main_menu(query, context, language):
                     reply_markup=reply_markup,
                     parse_mode="Markdown"
                 )
-            
             # Удаляем предыдущее сообщение ПОСЛЕ отправки нового
             await query.message.delete()
         except Exception as e:
@@ -239,7 +238,8 @@ async def show_main_menu(query, context, language):
             try:
                 await query.edit_message_text(
                     text=menu_content,
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
                 )
             except Exception:
                 await query.message.reply_text(
@@ -263,7 +263,7 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await show_submenu_page(query, context, menu_item, language)
 
 async def show_submenu_page(query, context, page, language):
-    """Показывает подменю на выбранном языке без мерцания"""
+    """Показывает подменю на выбранном языке (унифицированный быстрый переход)"""
     
     # Заглушки для разных пунктов меню
     messages = {
@@ -325,47 +325,43 @@ async def show_submenu_page(query, context, page, language):
     )
     
     if is_channel:
-        # УЛУЧШЕНИЕ: Для канала обеспечиваем плавный переход без мерцания
+        # УНИФИЦИРОВАННЫЙ ПОДХОД: Быстро отправляем новое, потом удаляем старое
         message_ids = load_message_ids()
         
-        # Отправляем новое сообщение без уведомления
+        # 1. Сначала создаем и отправляем новое сообщение без уведомления
         new_message = await context.bot.send_message(
             chat_id=CHANNEL_ID,
             text=message,
             reply_markup=reply_markup,
             parse_mode="Markdown",
-            disable_notification=True  # Важно: отключаем уведомления
+            disable_notification=True  # Важно: отключаем уведомления всегда
         )
         
-        # Сохраняем ID нового сообщения
+        # 2. Сразу сохраняем ID нового сообщения в структуру, чтобы оно не было удалено случайно
         message_ids[message_key] = new_message.message_id
-        
-        # Обновляем список сообщений
         if "all_messages" not in message_ids:
             message_ids["all_messages"] = []
-        
         if new_message.message_id not in message_ids["all_messages"]:
             message_ids["all_messages"].append(new_message.message_id)
+        save_message_ids(message_ids)  # Важно сохранить до удаления старого
         
-        # После успешной отправки нового сообщения удаляем старое
+        # 3. Теперь можно удалить старое сообщение
         old_message_id = query.message.message_id
-        if old_message_id != new_message.message_id:
+        if old_message_id != new_message.message_id:  # Проверка чтобы не удалять то же самое
             try:
                 await context.bot.delete_message(
                     chat_id=CHANNEL_ID,
                     message_id=old_message_id
                 )
                 
-                # Удаляем ID из списка всех сообщений
+                # Обновляем список всех сообщений после успешного удаления
                 if old_message_id in message_ids["all_messages"]:
                     message_ids["all_messages"].remove(old_message_id)
+                save_message_ids(message_ids)
             except Exception as e:
                 logger.error(f"Ошибка при удалении старого сообщения: {e}")
-        
-        # Сохраняем обновленный список ID
-        save_message_ids(message_ids)
     else:
-        # Это личный чат с пользователем
+        # Это личный чат с пользователем - используем edit_message_text
         try:
             await query.edit_message_text(
                 text=message,
@@ -375,4 +371,8 @@ async def show_submenu_page(query, context, page, language):
         except Exception as e:
             logger.error(f"Ошибка при обновлении сообщения: {e}")
             # Запасной вариант
-            await query.message.reply_text(text=message, reply_markup=reply_markup)
+            await query.message.reply_text(
+                text=message, 
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
