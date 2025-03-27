@@ -199,3 +199,55 @@ async def clean_all_channel_messages(context, except_message_id=None, force_clea
     else:
         logger.info("Нет дополнительных сообщений для удаления")
         return False
+
+async def send_photo_to_channel(context, photo_path, caption=None, reply_markup=None, message_key="photo_message"):
+    """Функция для отправки/обновления сообщений с изображениями в канале."""
+    message_ids = load_message_ids()
+    existing_message_id = message_ids.get(message_key)
+    
+    try:
+        # Если есть существующее сообщение, удаляем его, так как
+        # Telegram API не позволяет редактировать фотографии
+        if existing_message_id:
+            try:
+                await context.bot.delete_message(
+                    chat_id=CHANNEL_ID,
+                    message_id=existing_message_id
+                )
+                # Удаляем ID из списка всех сообщений
+                if "all_messages" in message_ids and existing_message_id in message_ids["all_messages"]:
+                    message_ids["all_messages"].remove(existing_message_id)
+                
+                logger.info(f"Удалено сообщение с фото {message_key} (ID: {existing_message_id})")
+            except Exception as e:
+                logger.error(f"Ошибка при удалении сообщения с фото: {e}")
+        
+        # Отправляем новое сообщение с фото
+        with open(photo_path, "rb") as photo_file:
+            message = await context.bot.send_photo(
+                chat_id=CHANNEL_ID,
+                photo=photo_file,
+                caption=caption,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+        
+        # Сохраняем ID нового сообщения
+        message_ids[message_key] = message.message_id
+        
+        # Добавляем ID в список всех сообщений
+        if "all_messages" not in message_ids:
+            message_ids["all_messages"] = []
+        
+        if message.message_id not in message_ids["all_messages"]:
+            message_ids["all_messages"].append(message.message_id)
+        
+        # Сохраняем обновленный список ID
+        save_message_ids(message_ids)
+        
+        logger.info(f"Отправлено новое сообщение с фото {message_key} (ID: {message.message_id})")
+        return message
+    except Exception as e:
+        logger.error(f"Ошибка отправки фото в канал: {e}")
+        # В случае ошибки пытаемся отправить обычное текстовое сообщение
+        return await send_to_channel(context, caption, reply_markup, message_key)

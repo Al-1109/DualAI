@@ -23,8 +23,8 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 async def send_welcome_to_channel(context):
-    """Отправка приветственного сообщения в канал."""
-    logger.info("Отправляем приветственное сообщение...")
+    """Отправка приветственного сообщения с изображением в канал."""
+    logger.info("Отправляем приветственное сообщение с изображением...")
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
     
     # Создаем клавиатуру для выбора языка
@@ -47,14 +47,48 @@ async def send_welcome_to_channel(context):
     # Получаем текущие сообщения
     message_ids = load_message_ids()
     
+    # Путь к приветственному изображению
+    welcome_image_path = "media/images/photo.jpg"
     
-    # Отправляем новое приветственное сообщение
-    message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
-    
-    # Окончательно очищаем все сообщения, кроме только что отправленного
-    await clean_all_channel_messages(context, message.message_id, True)
-    
-    return message
+    try:
+        # Отправляем изображение с текстом в подписи
+        with open(welcome_image_path, "rb") as photo:
+            message = await context.bot.send_photo(
+                chat_id=CHANNEL_ID,
+                photo=photo,
+                caption=welcome_message,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+            
+            # Сохраняем ID сообщения
+            message_ids["welcome_message"] = message.message_id
+            
+            # Добавляем в список всех сообщений
+            if "all_messages" not in message_ids:
+                message_ids["all_messages"] = []
+            
+            if message.message_id not in message_ids["all_messages"]:
+                message_ids["all_messages"].append(message.message_id)
+            
+            save_message_ids(message_ids)
+            
+            # Очищаем все сообщения, кроме только что отправленного
+            await clean_all_channel_messages(context, message.message_id, True)
+            
+            logger.info(f"Отправлено приветственное сообщение с изображением (ID: {message.message_id})")
+            return message
+            
+    except Exception as e:
+        logger.error(f"Ошибка при отправке изображения: {e}")
+        # Если не удалось отправить изображение, отправляем обычное текстовое сообщение
+        logger.info("Отправляем текстовое сообщение без изображения...")
+        message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
+        
+        # Очищаем все сообщения, кроме только что отправленного
+        await clean_all_channel_messages(context, message.message_id, True)
+        
+        return message
 
 async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Административная команда для отправки сообщения в канал."""
