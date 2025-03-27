@@ -136,8 +136,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def send_menu_update(context, chat_id, old_message_id, content, keyboard, message_key, use_photo=False):
     """
     Универсальная функция для всех типов переходов между меню и подменю.
-    Отправляет новое сообщение, сохраняет его ID, затем удаляет старое - 
-    это устраняет эффект мерцания и обеспечивает одинаковую скорость для всех переходов.
+    Оптимизировано для работы на всех клиентах Telegram (включая Android).
     
     Args:
         context: Контекст бота
@@ -188,6 +187,9 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
             # Сохраняем сразу, до выполнения операции удаления
             save_message_ids(message_ids)
             
+            # Важно! Небольшая пауза для Android-клиентов
+            await asyncio.sleep(0.2)
+            
             # 3. Только теперь удаляем старое сообщение
             if old_message_id and old_message_id != new_message_id:
                 try:
@@ -195,6 +197,9 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
                         chat_id=chat_id,
                         message_id=old_message_id
                     )
+                    
+                    # Снова небольшая пауза после удаления
+                    await asyncio.sleep(0.1)
                     
                     # После успешного удаления обновляем список сообщений
                     if old_message_id in message_ids["all_messages"]:
@@ -206,7 +211,7 @@ async def send_menu_update(context, chat_id, old_message_id, content, keyboard, 
         logger.error(f"Ошибка при отправке сообщения: {e}")
     
     end_time = time.time()
-    logger.info(f"Переход выполнен за {end_time - start_time:.3f} сек. [{message_key}]")
+    logger.info(f"Переход выполнен за {end_time - start_time:.3f} сек. [{message_key}] на {chat_id}")
     return new_message
 
 async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
