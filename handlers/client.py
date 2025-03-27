@@ -128,7 +128,7 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
     await query.answer()
     
-    # Получаем выбранный язык и режим из данных колбэка (lang_XX_YY где XX - язык, YY - режим)
+    # Получаем выбранный язык и режим из данных колбэка
     callback_parts = query.data.split('_')
     language = callback_parts[1]
     mode = callback_parts[2] if len(callback_parts) > 2 else 'main'
@@ -157,94 +157,35 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     # Проверяем, является ли это сообщение сообщением канала
     if query.message.chat.id == CHANNEL_ID:
-        message_ids = load_message_ids()
-        # Путь к изображению для языкового меню
-        language_image_path = "media/images/photo.jpg"
+        # Очищаем все сообщения в канале перед отправкой нового
+        await clean_all_channel_messages(context, None, True)
         
-        try:
-            # Если предыдущее сообщение содержало фото
-            if query.message.photo:
-                # Для изменения сообщения с фото нужно удалить старое и отправить новое
-                try:
-                    # Удаляем старое сообщение
-                    await context.bot.delete_message(
-                        chat_id=CHANNEL_ID,
-                        message_id=query.message.message_id
-                    )
-                    
-                    # Удаляем ID из списка всех сообщений
-                    if query.message.message_id in message_ids.get("all_messages", []):
-                        message_ids["all_messages"].remove(query.message.message_id)
-                except Exception as e:
-                    logger.error(f"Ошибка при удалении предыдущего сообщения: {e}")
-                
-                # Отправляем новое сообщение с фото
-                with open(language_image_path, "rb") as photo:
-                    new_message = await context.bot.send_photo(
-                        chat_id=CHANNEL_ID,
-                        photo=photo,
-                        caption=menu_content,
-                        reply_markup=reply_markup,
-                        parse_mode="Markdown"
-                    )
-                
-                # Обновляем ID сообщения
-                message_key = f"main_menu_{language}"
-                message_ids[message_key] = new_message.message_id
-                
-                # Обновляем список всех сообщений
-                if new_message.message_id not in message_ids["all_messages"]:
-                    message_ids["all_messages"].append(new_message.message_id)
-                
-                save_message_ids(message_ids)
-            else:
-                # Текущее сообщение без фото, удаляем его и отправляем новое с фото
-                try:
-                    # Удаляем старое сообщение
-                    await context.bot.delete_message(
-                        chat_id=CHANNEL_ID,
-                        message_id=query.message.message_id
-                    )
-                    
-                    # Удаляем ID из списка всех сообщений
-                    if query.message.message_id in message_ids.get("all_messages", []):
-                        message_ids["all_messages"].remove(query.message.message_id)
-                except Exception as e:
-                    logger.error(f"Ошибка при удалении предыдущего сообщения: {e}")
-                
-                # Отправляем новое сообщение с фото
-                with open(language_image_path, "rb") as photo:
-                    new_message = await context.bot.send_photo(
-                        chat_id=CHANNEL_ID,
-                        photo=photo,
-                        caption=menu_content,
-                        reply_markup=reply_markup,
-                        parse_mode="Markdown"
-                    )
-                
-                # Обновляем ID сообщения
-                message_key = f"main_menu_{language}"
-                message_ids[message_key] = new_message.message_id
-                
-                # Обновляем список всех сообщений
-                if new_message.message_id not in message_ids["all_messages"]:
-                    message_ids["all_messages"].append(new_message.message_id)
-                
-                save_message_ids(message_ids)
-        except Exception as e:
-            logger.error(f"Ошибка при работе с изображением: {e}")
-            # В случае ошибки используем обычный текстовый метод
-            await send_to_channel(context, menu_content, reply_markup, f"main_menu_{language}")
+        # Отправляем новое сообщение с изображением
+        language_image_path = "media/images/photo.jpg"
+        await send_photo_to_channel(context, language_image_path, menu_content, reply_markup, f"main_menu_{language}")
     else:
-        # Это личный чат с пользователем, обновляем сообщение напрямую
+        # Это личный чат с пользователем
         try:
-            await query.edit_message_text(
-                text=menu_content,
-                reply_markup=reply_markup
-            )
+            # Если есть фото, удаляем сообщение и отправляем новое
+            if query.message.photo:
+                await query.message.delete()
+                # Отправляем новое сообщение с фото
+                welcome_image_path = "media/images/photo.jpg"
+                with open(welcome_image_path, "rb") as photo:
+                    await query.message.reply_photo(
+                        photo=photo,
+                        caption=menu_content,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+            else:
+                # Обычное текстовое сообщение - можно редактировать
+                await query.edit_message_text(
+                    text=menu_content,
+                    reply_markup=reply_markup
+                )
         except Exception as e:
-            logger.error(f"Ошибка при обновлении сообщения в личном чате: {e}")
-            # Если не удалось обновить, отправляем новое
+            logger.error(f"Ошибка при обновлении сообщения: {e}")
             await query.message.reply_text(
                 text=menu_content,
                 reply_markup=reply_markup
