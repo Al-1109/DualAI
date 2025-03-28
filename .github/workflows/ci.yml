@@ -10,12 +10,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
+        cache: 'pip'
     
     - name: Install dependencies
       run: |
@@ -36,10 +37,10 @@ jobs:
 #    needs: test
 #    runs-on: ubuntu-latest
 #    steps:
-#    - uses: actions/checkout@v2
+#    - uses: actions/checkout@v4
 #    
 #    - name: Create Issue
-#      uses: actions/github-script@v6
+#      uses: actions/github-script@v7
 #      with:
 #        script: |
 #          const issue = await github.rest.issues.create({
@@ -54,10 +55,10 @@ jobs:
 #    needs: test
 #    runs-on: ubuntu-latest
 #    steps:
-#    - uses: actions/checkout@v2
+#    - uses: actions/checkout@v4
 #    
 #    - name: Update Project Status
-#      uses: actions/github-script@v6
+#      uses: actions/github-script@v7
 #      with:
 #        script: |
 #          const project = await github.rest.projects.listForOrg({
@@ -77,12 +78,12 @@ jobs:
 #    runs-on: ubuntu-latest
 #    if: github.ref == 'refs/heads/main'
 #    steps:
-#    - uses: actions/checkout@v2
+#    - uses: actions/checkout@v4
 #      with:
 #        fetch-depth: 0
 #    
 #    - name: Create Release
-#      uses: actions/github-script@v6
+#      uses: actions/github-script@v7
 #      with:
 #        script: |
 #          const tag = `v${new Date().toISOString().split('T')[0]}`;
