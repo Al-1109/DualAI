@@ -20,13 +20,18 @@ jobs:
         $SecurePassword = ConvertTo-SecureString "$env:RDP_PASSWORD" -AsPlainText -Force
         $Credential = New-Object System.Management.Automation.PSCredential ("AdmVps", $SecurePassword)
         
-        # Копируем файл
-        $Session = New-PSSession -ComputerName "65.21.73.61:30596" -Credential $Credential
-        Copy-Item "test_deploy.py" -Destination "C:\Users\AdmVps\DualAI\" -ToSession $Session
+        # Настраиваем параметры RDP
+        $ComputerName = "65.21.73.61"
+        $Port = 3389
+        
+        # Копируем файл через RDP
+        $Session = New-PSSession -ComputerName $ComputerName -Port $Port -Credential $Credential -Authentication Negotiate
+        Copy-Item "test_deploy.py" -Destination "C:\Users\AdmVps\DualAI\" -ToSession $Session -Force
         
         # Запускаем тест
         Invoke-Command -Session $Session -ScriptBlock {
-          python "C:\Users\AdmVps\DualAI\test_deploy.py"
+          Set-Location "C:\Users\AdmVps\DualAI"
+          python test_deploy.py
         }
         
         Remove-PSSession $Session 
