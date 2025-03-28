@@ -6,75 +6,27 @@ on:
 
 jobs:
   deploy:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     
     - name: Install FreeRDP
-      run: choco install freerdp -y
+      run: sudo apt-get update && sudo apt-get install -y freerdp2-x11
+    
+    - name: Check server availability
+      run: |
+        nc -zv 65.21.73.61 30596 || exit 1
     
     - name: Deploy via RDP
       env:
         RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
       run: |
-        try {
-          # Создаем временный файл с паролем
-          $PasswordFile = "password.txt"
-          $env:RDP_PASSWORD | Out-File -FilePath $PasswordFile -Encoding ASCII
-          
-          # Настраиваем параметры RDP
-          $ComputerName = "65.21.73.61"
-          $Port = 3389
-          $Username = "AdmVps"
-          
-          # Проверяем доступность сервера
-          Write-Host "Проверка доступности сервера..."
-          $TestConnection = Test-NetConnection -ComputerName $ComputerName -Port $Port -WarningAction SilentlyContinue
-          if (-not $TestConnection.TcpTestSucceeded) {
-            throw "Сервер недоступен по порту $Port"
-          }
-          
-          # Создаем сессию с расширенными параметрами безопасности
-          Write-Host "Установка соединения с сервером..."
-          $Session = New-PSSession -ComputerName $ComputerName -Port $Port -Credential (Get-Credential -UserName $Username -Password (Get-Content $PasswordFile | ConvertTo-SecureString -AsPlainText -Force)) -ErrorAction Stop
-          
-          # Проверяем существование директории
-          Write-Host "Проверка директории на сервере..."
-          $RemotePath = "C:\Users\AdmVps\DualAI"
-          $CheckDir = Invoke-Command -Session $Session -ScriptBlock {
-            Test-Path $using:RemotePath
-          }
-          
-          if (-not $CheckDir) {
-            Write-Host "Создание директории на сервере..."
-            Invoke-Command -Session $Session -ScriptBlock {
-              New-Item -ItemType Directory -Path $using:RemotePath -Force
-            }
-          }
-          
-          # Копируем файл
-          Write-Host "Копирование файла на сервер..."
-          Copy-Item "test_deploy.py" -Destination $RemotePath -ToSession $Session -Force
-          
-          # Запускаем тест
-          Write-Host "Запуск тестового скрипта..."
-          Invoke-Command -Session $Session -ScriptBlock {
-            Set-Location $using:RemotePath
-            python test_deploy.py
-          }
-          
-          Write-Host "Деплой успешно завершен"
-        }
-        catch {
-          Write-Host "Ошибка при деплое: $_"
-          throw $_
-        }
-        finally {
-          if ($Session) {
-            Write-Host "Закрытие сессии..."
-            Remove-PSSession $Session -Force -ErrorAction SilentlyContinue
-          }
-          if (Test-Path $PasswordFile) {
-            Remove-Item $PasswordFile -Force
-          }
-        } 
+        # Создаем временный файл с паролем
+        echo "$RDP_PASSWORD" > password.txt
+        chmod 600 password.txt
+        
+        # Подключаемся к серверу
+        xfreerdp /v:65.21.73.61:30596 /u:AdmVps /p:$(cat password.txt) /cert-ignore /sec:any /timeout:30
+        
+        # Удаляем временный файл
+        rm -f password.txt 
