@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Список администраторов (ID пользователей Telegram)
 # В будущем этот список можно перенести в файл конфигурации или БД
-ADMIN_IDS = [8178580481]  # ID бота
+ADMIN_IDS = [847964518]  # ID бота
 
 async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик вызова административной панели."""
