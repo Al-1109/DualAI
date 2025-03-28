@@ -167,6 +167,42 @@ async def startup(app):
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
 
+def main() -> None:
+    """Запуск бота."""
+    # Создаем приложение
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+    # Импортируем административные обработчики
+    from handlers import admin
+
+    # Регистрируем обработчики команд
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("sendtochannel", admin_send_to_channel))
+    
+    # Обработчики коллбэков от inline кнопок основного меню
+    application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
+    application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
+    
+    # Обработчики коллбэков административной панели
+    application.add_handler(CallbackQueryHandler(admin.admin_panel_callback, pattern=r'^admin_panel$'))
+    application.add_handler(CallbackQueryHandler(admin.admin_content_management, pattern=r'^admin_content$'))
+    application.add_handler(CallbackQueryHandler(admin.admin_statistics, pattern=r'^admin_stats$'))
+    application.add_handler(CallbackQueryHandler(admin.admin_notifications, pattern=r'^admin_notifications$'))
+    application.add_handler(CallbackQueryHandler(admin.admin_switch_environment, pattern=r'^admin_switch_env$'))
+    application.add_handler(CallbackQueryHandler(admin.admin_back_to_main, pattern=r'^admin_back_to_main$'))
+    
+    # Обработчик для неизвестных команд
+    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+    
+    # Обработчик текстовых сообщений
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Добавляем функцию, которая выполнится при запуске бота
+    application.post_init = startup
+
+    # Запускаем бота
+    logger.info("Bot started")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик неизвестных команд."""
