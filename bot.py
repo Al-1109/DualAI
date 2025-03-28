@@ -26,22 +26,28 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WELCOME_IMAGE_PATH = "media/images/photo.jpg"
 
 async def send_welcome_to_channel(context):
-    """Отправка приветственного сообщения с изображением в канал без мерцания."""
-    logger.info("Отправляем приветственное сообщение с изображением...")
+    """
+    Отправка приветственного сообщения с кнопками перехода к боту на разных языках.
+    Это сообщение будет закреплено в канале.
+    """
+    logger.info("Отправляем приветственное сообщение с кнопками перехода к боту...")
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
     
-    # Создаем клавиатуру для выбора языка
+    # Получаем имя бота из контекста
+    bot_username = context.bot.username
+    
+    # Создаем кнопки перехода к боту с выбором языка
     keyboard = [
         [
-            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
-            InlineKeyboardButton("🇪🇸 Español", callback_data="lang_es"),
+            InlineKeyboardButton("🇬🇧 Start in English", url=f"https://t.me/{bot_username}?start=lang_en"),
+            InlineKeyboardButton("🇪🇸 Comenzar en Español", url=f"https://t.me/{bot_username}?start=lang_es"),
         ],
         [
-            InlineKeyboardButton("🇩🇪 Deutsch", callback_data="lang_de"),
-            InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr"),
+            InlineKeyboardButton("🇩🇪 Auf Deutsch starten", url=f"https://t.me/{bot_username}?start=lang_de"),
+            InlineKeyboardButton("🇫🇷 Commencer en Français", url=f"https://t.me/{bot_username}?start=lang_fr"),
         ],
         [
-            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+            InlineKeyboardButton("🇷🇺 Начать на русском", url=f"https://t.me/{bot_username}?start=lang_ru"),
         ]
     ]
     
@@ -49,48 +55,95 @@ async def send_welcome_to_channel(context):
     
     # Получаем текущие сообщения
     message_ids = load_message_ids()
+    pinned_message_id = message_ids.get("pinned_welcome")
     
     try:
-        # Отправляем изображение с текстом в подписи, отключив уведомления
-        with open(WELCOME_IMAGE_PATH, "rb") as photo:
-            message = await context.bot.send_photo(
+        # Проверяем, существует ли уже закрепленное сообщение
+        if pinned_message_id:
+            try:
+                # Пытаемся редактировать существующее сообщение
+                if "welcome_has_photo" in message_ids and message_ids["welcome_has_photo"]:
+                    # Если у нас есть фото, то редактируем подпись
+                    await context.bot.edit_message_caption(
+                        chat_id=CHANNEL_ID,
+                        message_id=pinned_message_id,
+                        caption=welcome_message,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+                    logger.info(f"Обновлено закрепленное сообщение с ID: {pinned_message_id}")
+                    return pinned_message_id
+                else:
+                    # Если нет фото, редактируем текст
+                    await context.bot.edit_message_text(
+                        chat_id=CHANNEL_ID,
+                        message_id=pinned_message_id,
+                        text=welcome_message,
+                        reply_markup=reply_markup,
+                        parse_mode="Markdown"
+                    )
+                    logger.info(f"Обновлено закрепленное сообщение с ID: {pinned_message_id}")
+                    return pinned_message_id
+            except Exception as e:
+                logger.error(f"Не удалось отредактировать закрепленное сообщение: {e}")
+                # Продолжаем и создаем новое сообщение
+        
+        # Отправляем новое сообщение с изображением
+        try:
+            with open(WELCOME_IMAGE_PATH, "rb") as photo:
+                message = await context.bot.send_photo(
+                    chat_id=CHANNEL_ID,
+                    photo=photo,
+                    caption=welcome_message,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown",
+                    disable_notification=True
+                )
+                
+                # Отмечаем, что сообщение содержит фото
+                message_ids["welcome_has_photo"] = True
+        except Exception as e:
+            logger.error(f"Ошибка при отправке изображения: {e}")
+            # Если не удалось отправить изображение, отправляем обычное текстовое сообщение
+            message = await context.bot.send_message(
                 chat_id=CHANNEL_ID,
-                photo=photo,
-                caption=welcome_message,
+                text=welcome_message,
                 reply_markup=reply_markup,
                 parse_mode="Markdown",
-                disable_notification=True  # Отключаем пуши
+                disable_notification=True
             )
-            
-            # Сохраняем ID сообщения
-            message_ids["welcome_message"] = message.message_id
-            
-            # Добавляем в список всех сообщений
-            if "all_messages" not in message_ids:
-                message_ids["all_messages"] = []
-            
-            if message.message_id not in message_ids["all_messages"]:
-                message_ids["all_messages"].append(message.message_id)
-            
-            save_message_ids(message_ids)
-            
-            # Очищаем все сообщения, кроме только что отправленного
-            # (теперь удаление происходит после успешной отправки нового сообщения)
+            message_ids["welcome_has_photo"] = False
+        
+        # Закрепляем сообщение
+        await context.bot.pin_chat_message(
+            chat_id=CHANNEL_ID,
+            message_id=message.message_id,
+            disable_notification=True
+        )
+        
+        # Сохраняем ID нового сообщения
+        message_ids["pinned_welcome"] = message.message_id
+        
+        # Добавляем в список всех сообщений
+        if "all_messages" not in message_ids:
+            message_ids["all_messages"] = []
+        
+        if message.message_id not in message_ids["all_messages"]:
+            message_ids["all_messages"].append(message.message_id)
+        
+        save_message_ids(message_ids)
+        
+        # Удаляем все другие сообщения канала, кроме закрепленного
+        # Но только если это новый pin, а не обновление существующего
+        if not pinned_message_id or pinned_message_id != message.message_id:
             await clean_all_channel_messages(context, message.message_id, True)
-            
-            logger.info(f"Отправлено приветственное сообщение с изображением (ID: {message.message_id})")
-            return message
+        
+        logger.info(f"Отправлено и закреплено приветственное сообщение (ID: {message.message_id})")
+        return message.message_id
             
     except Exception as e:
-        logger.error(f"Ошибка при отправке изображения: {e}")
-        # Если не удалось отправить изображение, отправляем обычное текстовое сообщение (тоже без уведомления)
-        logger.info("Отправляем текстовое сообщение без изображения...")
-        message = await send_to_channel(context, welcome_message, reply_markup, "welcome_message")
-        
-        # Очищаем все сообщения, кроме только что отправленного
-        await clean_all_channel_messages(context, message.message_id, True)
-        
-        return message
+        logger.error(f"Ошибка при работе с приветственным сообщением: {e}")
+        return None
 
 async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Административная команда для отправки сообщения в канал."""
@@ -114,31 +167,6 @@ async def startup(app):
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
 
-def main() -> None:
-    """Запуск бота."""
-    # Создаем приложение
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-
-    # Регистрируем обработчики команд
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("sendtochannel", admin_send_to_channel))
-    
-    # Обработчики коллбэков от inline кнопок
-    application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
-    application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
-    
-    # Обработчик для неизвестных команд
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
-    
-    # Обработчик текстовых сообщений
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Добавляем функцию, которая выполнится при запуске бота
-    application.post_init = startup
-
-    # Запускаем бота
-    logger.info("Bot started")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик неизвестных команд."""
