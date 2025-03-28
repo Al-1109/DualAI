@@ -1,0 +1,32 @@
+name: Deploy to VPS
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Install FreeRDP
+      run: choco install freerdp -y
+    
+    - name: Deploy via RDP
+      env:
+        RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+      run: |
+        $SecurePassword = ConvertTo-SecureString "$env:RDP_PASSWORD" -AsPlainText -Force
+        $Credential = New-Object System.Management.Automation.PSCredential ("AdmVps", $SecurePassword)
+        
+        # Копируем файл
+        $Session = New-PSSession -ComputerName "65.21.73.61:30596" -Credential $Credential
+        Copy-Item "test_deploy.py" -Destination "C:\Users\AdmVps\DualAI\" -ToSession $Session
+        
+        # Запускаем тест
+        Invoke-Command -Session $Session -ScriptBlock {
+          python "C:\Users\AdmVps\DualAI\test_deploy.py"
+        }
+        
+        Remove-PSSession $Session 
