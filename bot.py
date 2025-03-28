@@ -28,7 +28,7 @@ WELCOME_IMAGE_PATH = "media/images/photo.jpg"
 async def send_welcome_to_channel(context):
     """
     Отправка приветственного сообщения с кнопками перехода к боту на разных языках.
-    Это сообщение будет закреплено в канале.
+    Сообщение не закрепляется, но является единственным в канале.
     """
     logger.info("Отправляем приветственное сообщение с кнопками перехода к боту...")
     welcome_message = load_content_file("Telegram_content/welcome_message.md")
@@ -53,97 +53,48 @@ async def send_welcome_to_channel(context):
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Получаем текущие сообщения
+    # Сначала удаляем все существующие сообщения в канале
     message_ids = load_message_ids()
-    pinned_message_id = message_ids.get("pinned_welcome")
-    
-    try:
-        # Проверяем, существует ли уже закрепленное сообщение
-        if pinned_message_id:
-            try:
-                # Пытаемся редактировать существующее сообщение
-                if "welcome_has_photo" in message_ids and message_ids["welcome_has_photo"]:
-                    # Если у нас есть фото, то редактируем подпись
-                    await context.bot.edit_message_caption(
-                        chat_id=CHANNEL_ID,
-                        message_id=pinned_message_id,
-                        caption=welcome_message,
-                        reply_markup=reply_markup,
-                        parse_mode="Markdown"
-                    )
-                    logger.info(f"Обновлено закрепленное сообщение с ID: {pinned_message_id}")
-                    return pinned_message_id
-                else:
-                    # Если нет фото, редактируем текст
-                    await context.bot.edit_message_text(
-                        chat_id=CHANNEL_ID,
-                        message_id=pinned_message_id,
-                        text=welcome_message,
-                        reply_markup=reply_markup,
-                        parse_mode="Markdown"
-                    )
-                    logger.info(f"Обновлено закрепленное сообщение с ID: {pinned_message_id}")
-                    return pinned_message_id
-            except Exception as e:
-                logger.error(f"Не удалось отредактировать закрепленное сообщение: {e}")
-                # Продолжаем и создаем новое сообщение
-        
-        # Отправляем новое сообщение с изображением
+    for msg_id in message_ids.get("all_messages", []):
         try:
-            with open(WELCOME_IMAGE_PATH, "rb") as photo:
-                message = await context.bot.send_photo(
-                    chat_id=CHANNEL_ID,
-                    photo=photo,
-                    caption=welcome_message,
-                    reply_markup=reply_markup,
-                    parse_mode="Markdown",
-                    disable_notification=True
-                )
-                
-                # Отмечаем, что сообщение содержит фото
-                message_ids["welcome_has_photo"] = True
+            await context.bot.delete_message(chat_id=CHANNEL_ID, message_id=msg_id)
+            logger.info(f"Удалено сообщение {msg_id}")
+            await asyncio.sleep(0.1)  # Небольшая пауза для API
         except Exception as e:
-            logger.error(f"Ошибка при отправке изображения: {e}")
-            # Если не удалось отправить изображение, отправляем обычное текстовое сообщение
-            message = await context.bot.send_message(
+            logger.error(f"Не удалось удалить сообщение {msg_id}: {e}")
+    
+    # Отправляем новое сообщение с изображением
+    try:
+        with open(WELCOME_IMAGE_PATH, "rb") as photo:
+            message = await context.bot.send_photo(
                 chat_id=CHANNEL_ID,
-                text=welcome_message,
+                photo=photo,
+                caption=welcome_message,
                 reply_markup=reply_markup,
                 parse_mode="Markdown",
                 disable_notification=True
             )
-            message_ids["welcome_has_photo"] = False
-        
-        # Закрепляем сообщение
-        await context.bot.pin_chat_message(
-            chat_id=CHANNEL_ID,
-            message_id=message.message_id,
-            disable_notification=True
-        )
-        
-        # Сохраняем ID нового сообщения
-        message_ids["pinned_welcome"] = message.message_id
-        
-        # Добавляем в список всех сообщений
-        if "all_messages" not in message_ids:
-            message_ids["all_messages"] = []
-        
-        if message.message_id not in message_ids["all_messages"]:
-            message_ids["all_messages"].append(message.message_id)
-        
-        save_message_ids(message_ids)
-        
-        # Удаляем все другие сообщения канала, кроме закрепленного
-        # Но только если это новый pin, а не обновление существующего
-        if not pinned_message_id or pinned_message_id != message.message_id:
-            await clean_all_channel_messages(context, message.message_id, True)
-        
-        logger.info(f"Отправлено и закреплено приветственное сообщение (ID: {message.message_id})")
-        return message.message_id
+            
+            # Отмечаем, что сообщение содержит фото
+            message_ids = {"welcome_message": message.message_id, "welcome_has_photo": True, "all_messages": [message.message_id]}
             
     except Exception as e:
-        logger.error(f"Ошибка при работе с приветственным сообщением: {e}")
-        return None
+        logger.error(f"Ошибка при отправке изображения: {e}")
+        # Если не удалось отправить изображение, отправляем обычное текстовое сообщение
+        message = await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=welcome_message,
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
+            disable_notification=True
+        )
+        message_ids = {"welcome_message": message.message_id, "welcome_has_photo": False, "all_messages": [message.message_id]}
+    
+    # Сохраняем новое состояние сообщений (только одно сообщение в канале)
+    save_message_ids(message_ids)
+    
+    logger.info(f"Отправлено приветственное сообщение (ID: {message.message_id})")
+    return message.message_id
 
 async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Административная команда для отправки сообщения в канал."""
