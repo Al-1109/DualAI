@@ -18,12 +18,14 @@ jobs:
         RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
       run: |
         try {
-          $SecurePassword = ConvertTo-SecureString "$env:RDP_PASSWORD" -AsPlainText -Force
-          $Credential = New-Object System.Management.Automation.PSCredential ("AdmVps", $SecurePassword)
+          # Создаем временный файл с паролем
+          $PasswordFile = "password.txt"
+          $env:RDP_PASSWORD | Out-File -FilePath $PasswordFile -Encoding ASCII
           
           # Настраиваем параметры RDP
           $ComputerName = "65.21.73.61"
           $Port = 3389
+          $Username = "AdmVps"
           
           # Проверяем доступность сервера
           Write-Host "Проверка доступности сервера..."
@@ -34,7 +36,7 @@ jobs:
           
           # Создаем сессию с расширенными параметрами безопасности
           Write-Host "Установка соединения с сервером..."
-          $Session = New-PSSession -ComputerName $ComputerName -Port $Port -Credential $Credential -Authentication Basic -ErrorAction Stop
+          $Session = New-PSSession -ComputerName $ComputerName -Port $Port -Credential (Get-Credential -UserName $Username -Password (Get-Content $PasswordFile | ConvertTo-SecureString -AsPlainText -Force)) -ErrorAction Stop
           
           # Проверяем существование директории
           Write-Host "Проверка директории на сервере..."
@@ -71,5 +73,8 @@ jobs:
           if ($Session) {
             Write-Host "Закрытие сессии..."
             Remove-PSSession $Session -Force -ErrorAction SilentlyContinue
+          }
+          if (Test-Path $PasswordFile) {
+            Remove-Item $PasswordFile -Force
           }
         } 
