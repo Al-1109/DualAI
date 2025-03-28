@@ -5,6 +5,10 @@ __pycache__/
 
 # Секретные данные
 .env
+.env.*
+*.env
+vercel.json
+.vercel
 
 # Базы данных
 *.db
