@@ -107,12 +107,32 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                              callback_data="admin_back_to_main")]
     ]
     
-    # Обновляем сообщение
-    await query.edit_message_text(
-        text=message,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
+    # Проверяем, содержит ли сообщение фото
+    has_photo = hasattr(query.message, 'photo') and query.message.photo
+    
+    try:
+        if has_photo:
+            # Если сообщение с фото, редактируем подпись
+            await query.edit_message_caption(
+                caption=message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            # Если обычное текстовое сообщение, редактируем текст
+            await query.edit_message_text(
+                text=message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении админ-панели: {e}")
+        # В случае ошибки отправляем новое сообщение
+        await query.message.reply_text(
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
     
     # Обновляем текущую страницу пользователя
     context.user_data['current_page'] = 'admin_panel'
@@ -187,11 +207,32 @@ async def admin_content_management(update: Update, context: ContextTypes.DEFAULT
         callback_data="admin_panel"
     )]]
     
-    await query.edit_message_text(
-        text=message.get(language, message['en']),
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
+    # Проверяем, содержит ли сообщение фото
+    has_photo = hasattr(query.message, 'photo') and query.message.photo
+    
+    try:
+        if has_photo:
+            # Если сообщение с фото, редактируем подпись
+            await query.edit_message_caption(
+                caption=message.get(language, message['en']),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            # Если обычное текстовое сообщение, редактируем текст
+            await query.edit_message_text(
+                text=message.get(language, message['en']),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении страницы управления контентом: {e}")
+        # В случае ошибки отправляем новое сообщение
+        await query.message.reply_text(
+            text=message.get(language, message['en']),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
 
 async def admin_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Заглушка для статистики."""
@@ -224,11 +265,32 @@ async def admin_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         callback_data="admin_panel"
     )]]
     
-    await query.edit_message_text(
-        text=message.get(language, message['en']),
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
+    # Проверяем, содержит ли сообщение фото
+    has_photo = hasattr(query.message, 'photo') and query.message.photo
+    
+    try:
+        if has_photo:
+            # Если сообщение с фото, редактируем подпись
+            await query.edit_message_caption(
+                caption=message.get(language, message['en']),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            # Если обычное текстовое сообщение, редактируем текст
+            await query.edit_message_text(
+                text=message.get(language, message['en']),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении страницы статистики: {e}")
+        # В случае ошибки отправляем новое сообщение
+        await query.message.reply_text(
+            text=message.get(language, message['en']),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
 
 async def admin_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Заглушка для управления уведомлениями."""
@@ -261,8 +323,29 @@ async def admin_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE
         callback_data="admin_panel"
     )]]
     
-    await query.edit_message_text(
-        text=message.get(language, message['en']),
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
+    # Проверяем, содержит ли сообщение фото
+    has_photo = hasattr(query.message, 'photo') and query.message.photo
+    
+    try:
+        if has_photo:
+            # Если сообщение с фото, редактируем подпись
+            await query.edit_message_caption(
+                caption=message.get(language, message['en']),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            # Если обычное текстовое сообщение, редактируем текст
+            await query.edit_message_text(
+                text=message.get(language, message['en']),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении страницы уведомлений: {e}")
+        # В случае ошибки отправляем новое сообщение
+        await query.message.reply_text(
+            text=message.get(language, message['en']),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
