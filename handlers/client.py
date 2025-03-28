@@ -15,6 +15,9 @@ from utils import (
     send_photo_to_channel
 )
 
+# Импорт ID администраторов
+from handlers.admin import ADMIN_IDS
+
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -113,6 +116,63 @@ def create_menu_keyboard(language, is_admin=False):
     keyboard.extend(create_language_buttons())
     
     return keyboard
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обработчик команды /start с поддержкой параметра языка.
+    Учитывает переход из канала с выбранным языком.
+    """
+    # Проверяем, передан ли параметр языка (например, /start lang_ru)
+    args = context.args
+    language = 'en'  # Язык по умолчанию
+    
+    if args and args[0].startswith('lang_'):
+        # Извлекаем код языка из параметра
+        language = args[0].split('_')[1]  # например, 'ru' из 'lang_ru'
+        # Сохраняем выбранный язык в данных пользователя
+        context.user_data['language'] = language
+        logger.info(f"Пользователь выбрал язык: {language} через параметр /start")
+    else:
+        # Если язык не передан, используем сохраненный или английский по умолчанию
+        language = context.user_data.get('language', 'en')
+    
+    # Получаем ID пользователя для проверки админских прав
+    user_id = update.effective_user.id
+    
+    # Проверяем, является ли пользователь администратором
+    is_admin = user_id in ADMIN_IDS
+    
+    # Сохраняем статус администратора в данных пользователя
+    context.user_data['is_admin'] = is_admin
+    
+    # Устанавливаем режим работы (по умолчанию 'production')
+    if 'environment' not in context.user_data:
+        context.user_data['environment'] = 'production'
+    
+    # Загружаем главное меню на выбранном языке
+    menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
+    keyboard = create_menu_keyboard(language, is_admin)
+    
+    # Обновляем текущую страницу пользователя
+    context.user_data['current_page'] = 'main_menu'
+    
+    try:
+        # Отправляем фото с текстом в подписи
+        with open(WELCOME_IMAGE_PATH, "rb") as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption=menu_content,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при отправке изображения: {e}")
+        # В случае ошибки отправляем обычное текстовое сообщение
+        await update.message.reply_text(
+            text=menu_content,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
 
 async def send_welcome_to_channel(context):
     """
@@ -235,8 +295,6 @@ async def send_welcome_to_channel(context):
         return None
 
 # НОВАЯ УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ДЛЯ ВСЕХ ТИПОВ ПЕРЕХОДОВ
-# Вот исправленная функция send_menu_update, которая гарантирует удаление старого сообщения
-
 async def send_menu_update(context, chat_id, old_message_id, content, keyboard, message_key, use_photo=False):
     """
     Функция перехода без мерцания для Android и других клиентов.
@@ -342,7 +400,11 @@ async def show_main_menu(query, context, language):
     """Показывает главное меню на выбранном языке с фотографией."""
     # Загружаем контент для главного меню
     menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
-    keyboard = create_menu_keyboard(language)
+    
+    # Проверяем, является ли пользователь администратором
+    is_admin = context.user_data.get('is_admin', False)
+    
+    keyboard = create_menu_keyboard(language, is_admin)
     
     # Обновляем текущую страницу
     context.user_data['current_page'] = 'main_menu'
