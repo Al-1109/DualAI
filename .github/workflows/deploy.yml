@@ -8,7 +8,7 @@ jobs:
   deploy:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     
     - name: Install FreeRDP
       run: choco install freerdp -y
@@ -17,21 +17,59 @@ jobs:
       env:
         RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
       run: |
-        $SecurePassword = ConvertTo-SecureString "$env:RDP_PASSWORD" -AsPlainText -Force
-        $Credential = New-Object System.Management.Automation.PSCredential ("AdmVps", $SecurePassword)
-        
-        # Настраиваем параметры RDP
-        $ComputerName = "65.21.73.61"
-        $Port = 3389
-        
-        # Копируем файл через RDP
-        $Session = New-PSSession -ComputerName $ComputerName -Port $Port -Credential $Credential -Authentication Negotiate
-        Copy-Item "test_deploy.py" -Destination "C:\Users\AdmVps\DualAI\" -ToSession $Session -Force
-        
-        # Запускаем тест
-        Invoke-Command -Session $Session -ScriptBlock {
-          Set-Location "C:\Users\AdmVps\DualAI"
-          python test_deploy.py
+        try {
+          $SecurePassword = ConvertTo-SecureString "$env:RDP_PASSWORD" -AsPlainText -Force
+          $Credential = New-Object System.Management.Automation.PSCredential ("AdmVps", $SecurePassword)
+          
+          # Настраиваем параметры RDP
+          $ComputerName = "65.21.73.61"
+          $Port = 3389
+          
+          # Проверяем доступность сервера
+          Write-Host "Проверка доступности сервера..."
+          $TestConnection = Test-NetConnection -ComputerName $ComputerName -Port $Port -WarningAction SilentlyContinue
+          if (-not $TestConnection.TcpTestSucceeded) {
+            throw "Сервер недоступен по порту $Port"
+          }
+          
+          # Создаем сессию с расширенными параметрами безопасности
+          Write-Host "Установка соединения с сервером..."
+          $Session = New-PSSession -ComputerName $ComputerName -Port $Port -Credential $Credential -Authentication Basic -ErrorAction Stop
+          
+          # Проверяем существование директории
+          Write-Host "Проверка директории на сервере..."
+          $RemotePath = "C:\Users\AdmVps\DualAI"
+          $CheckDir = Invoke-Command -Session $Session -ScriptBlock {
+            Test-Path $using:RemotePath
+          }
+          
+          if (-not $CheckDir) {
+            Write-Host "Создание директории на сервере..."
+            Invoke-Command -Session $Session -ScriptBlock {
+              New-Item -ItemType Directory -Path $using:RemotePath -Force
+            }
+          }
+          
+          # Копируем файл
+          Write-Host "Копирование файла на сервер..."
+          Copy-Item "test_deploy.py" -Destination $RemotePath -ToSession $Session -Force
+          
+          # Запускаем тест
+          Write-Host "Запуск тестового скрипта..."
+          Invoke-Command -Session $Session -ScriptBlock {
+            Set-Location $using:RemotePath
+            python test_deploy.py
+          }
+          
+          Write-Host "Деплой успешно завершен"
         }
-        
-        Remove-PSSession $Session 
+        catch {
+          Write-Host "Ошибка при деплое: $_"
+          throw $_
+        }
+        finally {
+          if ($Session) {
+            Write-Host "Закрытие сессии..."
+            Remove-PSSession $Session -Force -ErrorAction SilentlyContinue
+          }
+        } 
