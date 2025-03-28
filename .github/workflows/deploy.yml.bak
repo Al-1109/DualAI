@@ -1,0 +1,32 @@
+name: Deploy to VPS
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install FreeRDP
+      run: sudo apt-get update && sudo apt-get install -y freerdp2-x11
+    
+    - name: Check server availability
+      run: |
+        nc -zv 65.21.73.61 30596 || exit 1
+    
+    - name: Deploy via RDP
+      env:
+        RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+      run: |
+        # Создаем временный файл с паролем
+        echo "$RDP_PASSWORD" > password.txt
+        chmod 600 password.txt
+        
+        # Подключаемся к серверу
+        xfreerdp /v:65.21.73.61:30596 /u:AdmVps /p:$(cat password.txt) /cert-ignore /sec:any /timeout:30
+        
+        # Удаляем временный файл
+        rm -f password.txt 
