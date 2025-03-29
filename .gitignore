@@ -23,3 +23,6 @@ Thumbs.db
 
 # Файлы с данными о сообщениях
 data/channel_messages.json
+
+# Cursor local settings
+.cursor/
