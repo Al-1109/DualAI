@@ -1,46 +1,64 @@
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import json
-import os
-from telegram import Update
-from telegram.ext import Application
 from datetime import datetime
+import json
+from http.client import HTTPException
+from typing import Dict, Any
+from http import HTTPStatus
+from http.client import responses
 
-# Импортируем наш существующий бот
-from bot import TELEGRAM_BOT_TOKEN, start_command, language_callback, menu_callback
-
-# Инициализируем бота
-application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-
-# Добавляем обработчики
-application.add_handler(start_command)
-application.add_handler(language_callback)
-application.add_handler(menu_callback)
-
-async def handle_update(update_dict):
-    """Обработка обновлений от Telegram."""
-    update = Update.de_json(update_dict, application.bot)
-    await application.process_update(update)
-
-# Функция для Vercel
-async def handler(request):
-    """Точка входа для Vercel."""
-    if request.method == 'POST':
-        update_dict = json.loads(request.body)
-        await handle_update(update_dict)
-        return {'statusCode': 200, 'body': 'OK'}
-    elif request.method == 'GET':
-        return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'status': 'ok',
-                'message': 'Vercel endpoint is working',
-                'timestamp': datetime.now().isoformat()
-            })
+def handler(request):
+    """Handle incoming requests."""
+    try:
+        if request.method == 'GET':
+            body = {
+                "status": "ok",
+                "message": "DualAI test endpoint is working",
+                "timestamp": datetime.now().isoformat()
+            }
+            return Response(
+                status=200,
+                body=json.dumps(body),
+                headers={
+                    "Content-Type": "application/json"
+                }
+            )
+        elif request.method == 'POST':
+            body = {
+                "status": "ok",
+                "message": "Webhook endpoint ready"
+            }
+            return Response(
+                status=200,
+                body=json.dumps(body),
+                headers={
+                    "Content-Type": "application/json"
+                }
+            )
+        else:
+            body = {
+                "error": "Method not allowed"
+            }
+            return Response(
+                status=405,
+                body=json.dumps(body),
+                headers={
+                    "Content-Type": "application/json"
+                }
+            )
+    except Exception as e:
+        body = {
+            "error": str(e)
         }
-    else:
-        return {
-            'statusCode': 405,
-            'body': json.dumps({
-                'error': 'Method not allowed'
-            })
-        } 
+        return Response(
+            status=500,
+            body=json.dumps(body),
+            headers={
+                "Content-Type": "application/json"
+            }
+        )
+
+class Response:
+    def __init__(self, status: int, body: str, headers: Dict[str, str] = None):
+        self.status = status
+        self.statusText = responses[status]
+        self.body = body
+        self.headers = headers or {} 
