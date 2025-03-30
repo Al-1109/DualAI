@@ -222,12 +222,30 @@ def verify_telegram_request(request):
     return hmac.compare_digest(secret_token, WEBHOOK_SECRET)
 
 class handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        """Обработчик OPTIONS запросов для CORS"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'X-Telegram-Bot-Api-Secret-Token')
+        self.end_headers()
+        return
+
     def do_GET(self):
         """Обработчик GET запросов для проверки доступности webhook"""
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps({"status": "ok", "message": "Webhook endpoint is available"}).encode())
+        try:
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "message": "Webhook endpoint is available",
+                "environment": "test" if IS_TEST_ENV else "production"
+            }).encode())
+        except Exception as e:
+            logger.error(f"Error in GET handler: {e}")
+            self.send_error(500, str(e))
         return
 
     def do_POST(self):
@@ -236,6 +254,7 @@ class handler(BaseHTTPRequestHandler):
             # Проверяем, что запрос от Telegram
             if not verify_telegram_request(self):
                 self.send_response(401)
+                self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 return
 
@@ -253,6 +272,7 @@ class handler(BaseHTTPRequestHandler):
             # Отправляем успешный ответ
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok"}).encode())
 
@@ -260,8 +280,13 @@ class handler(BaseHTTPRequestHandler):
             logger.error(f"Error processing webhook: {e}")
             self.send_response(500)
             self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode())
+            self.wfile.write(json.dumps({
+                "status": "error",
+                "message": str(e),
+                "environment": "test" if IS_TEST_ENV else "production"
+            }).encode())
 
 if __name__ == '__main__':
     main()
