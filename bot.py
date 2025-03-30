@@ -234,8 +234,14 @@ class handler(BaseHTTPRequestHandler):
             return
 
         try:
-            update = Update.de_json(json.loads(request_body), application.bot)
-            asyncio.run(application.process_update(update))
+            # Initialize the application before processing updates
+            async def process_update_async():
+                await application.initialize()
+                update = Update.de_json(json.loads(request_body), application.bot)
+                await application.process_update(update)
+                await application.shutdown()
+            
+            asyncio.run(process_update_async())
             
             self.send_response(HTTPStatus.OK)
             self.send_header('Content-Type', 'application/json')
