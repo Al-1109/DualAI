@@ -43,6 +43,9 @@ logger.info(f"Webhook secret configured: {bool(WEBHOOK_SECRET)}")
 # Константы для путей
 WELCOME_IMAGE_PATH = "media/images/photo.jpg"
 
+# Initialize the application globally
+application = Application.builder().token(BOT_TOKEN).build()
+
 async def send_welcome_to_channel(context):
     """
     Отправка приветственного сообщения с кнопками перехода к боту на разных языках.
@@ -137,51 +140,6 @@ async def startup(app):
 
 def main() -> None:
     """Запуск бота."""
-    # Создаем приложение
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    # Импортируем административные обработчики
-    from handlers import admin
-
-    # Регистрируем обработчики команд
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("sendtochannel", admin_send_to_channel))
-    
-    # Обработчики коллбэков от inline кнопок основного меню
-    application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
-    application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
-    
-    # Обработчики коллбэков административной панели
-    application.add_handler(CallbackQueryHandler(admin.admin_panel_callback, pattern=r'^admin_panel$'))
-    application.add_handler(CallbackQueryHandler(admin.admin_content_management, pattern=r'^admin_content$'))
-    application.add_handler(CallbackQueryHandler(admin.admin_statistics, pattern=r'^admin_stats$'))
-    application.add_handler(CallbackQueryHandler(admin.admin_notifications, pattern=r'^admin_notifications$'))
-    application.add_handler(CallbackQueryHandler(admin.admin_back_to_main, pattern=r'^admin_back_to_main$'))
-    
-    # Обработчики тестовых команд (только для тестового окружения)
-    if IS_TEST_ENV:
-        application.add_handler(CallbackQueryHandler(admin.admin_test_commands, pattern=r'^admin_test_commands$'))
-        application.add_handler(CallbackQueryHandler(admin.admin_test_refresh, pattern=r'^admin_test_refresh$'))
-        application.add_handler(CallbackQueryHandler(admin.admin_test_send, pattern=r'^admin_test_send$'))
-        # Добавляем тестовые команды
-        application.add_handler(CommandHandler("test", lambda update, context: update.message.reply_text("Test command received!")))
-        application.add_handler(CommandHandler("env", lambda update, context: update.message.reply_text(
-            f"Environment: {'TEST' if IS_TEST_ENV else 'PRODUCTION'}\nVercel: {'YES' if os.getenv('VERCEL') else 'NO'}"
-        )))
-        application.add_handler(CommandHandler("ping", lambda update, context: update.message.reply_text("Pong! 🏓")))
-        application.add_handler(CommandHandler("echo", lambda update, context: update.message.reply_text(
-            " ".join(context.args) if context.args else "Usage: /echo [text]"
-        )))
-    
-    # Обработчик для неизвестных команд
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
-    
-    # Обработчик текстовых сообщений
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Добавляем функцию, которая выполнится при запуске бота
-    application.post_init = startup
-
     # Запускаем бота
     logger.info(f"Bot started in {ENVIRONMENT} environment")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
@@ -201,16 +159,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         f"В будущем я смогу отвечать на ваши вопросы. Пока что используйте меню."
     )
 
-async def handle_webhook(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик webhook запросов от Telegram"""
-    logger.info("Received webhook update")
-    try:
-        await update.message.reply_text("Webhook received successfully!")
-        return {"status": "ok"}
-    except Exception as e:
-        logger.error(f"Error handling webhook: {e}")
-        return {"status": "error", "message": str(e)}
-
 def verify_telegram_request(request_headers, request_body):
     """Verify that the request is from Telegram using the secret token."""
     if not WEBHOOK_SECRET:
@@ -228,16 +176,44 @@ def verify_telegram_request(request_headers, request_body):
         
     return True
 
-class handler(BaseHTTPRequestHandler):
-    def do_OPTIONS(self):
-        """Обработчик OPTIONS запросов для CORS"""
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'X-Telegram-Bot-Api-Secret-Token')
-        self.end_headers()
-        return
+# Register handlers
+application.add_handler(CommandHandler("start", start_command))
+application.add_handler(CommandHandler("sendtochannel", admin_send_to_channel))
+application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
+application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
 
+# Admin handlers
+from handlers import admin
+application.add_handler(CallbackQueryHandler(admin.admin_panel_callback, pattern=r'^admin_panel$'))
+application.add_handler(CallbackQueryHandler(admin.admin_content_management, pattern=r'^admin_content$'))
+application.add_handler(CallbackQueryHandler(admin.admin_statistics, pattern=r'^admin_stats$'))
+application.add_handler(CallbackQueryHandler(admin.admin_notifications, pattern=r'^admin_notifications$'))
+application.add_handler(CallbackQueryHandler(admin.admin_back_to_main, pattern=r'^admin_back_to_main$'))
+
+# Test handlers (only in test environment)
+if IS_TEST_ENV:
+    application.add_handler(CallbackQueryHandler(admin.admin_test_commands, pattern=r'^admin_test_commands$'))
+    application.add_handler(CallbackQueryHandler(admin.admin_test_refresh, pattern=r'^admin_test_refresh$'))
+    application.add_handler(CallbackQueryHandler(admin.admin_test_send, pattern=r'^admin_test_send$'))
+    application.add_handler(CommandHandler("test", lambda update, context: update.message.reply_text("Test command received!")))
+    application.add_handler(CommandHandler("env", lambda update, context: update.message.reply_text(
+        f"Environment: {'TEST' if IS_TEST_ENV else 'PRODUCTION'}\nVercel: {'YES' if os.getenv('VERCEL') else 'NO'}"
+    )))
+    application.add_handler(CommandHandler("ping", lambda update, context: update.message.reply_text("Pong! 🏓")))
+    application.add_handler(CommandHandler("echo", lambda update, context: update.message.reply_text(
+        " ".join(context.args) if context.args else "Usage: /echo [text]"
+    )))
+
+# Unknown command handler
+application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+
+# Text message handler
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# Add startup function
+application.post_init = startup
+
+class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         """Handle GET requests - return a simple status message."""
         self.send_response(HTTPStatus.OK)
@@ -275,5 +251,5 @@ class handler(BaseHTTPRequestHandler):
             response = {'status': 'error', 'message': str(e)}
             self.wfile.write(json.dumps(response).encode())
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
