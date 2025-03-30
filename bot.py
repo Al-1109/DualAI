@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 # Загрузка переменных окружения
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TEST_TELEGRAM_BOT_TOKEN")
+ADMIN_ID = os.getenv("ADMIN_ID")
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+
+# Проверка наличия необходимых переменных окружения
+if not all([TELEGRAM_BOT_TOKEN, ADMIN_ID, CHANNEL_ID]):
+    raise ValueError("Отсутствуют необходимые переменные окружения")
 
 async def send_welcome_to_channel(context):
     """Отправка приветственного сообщения в канал."""
@@ -72,15 +78,17 @@ async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def startup(app):
     """Функция, которая выполняется при запуске бота."""
-    # ID администратора (замените на ваш ID)
-    ADMIN_ID = 123456789  # Замените на ваш реальный Telegram ID
-    
     try:
         # Отправляем уведомление о перезапуске админу
-        await app.bot.send_message(
-            chat_id=ADMIN_ID,
-            text="✅ Бот был перезапущен и готов к работе."
-        )
+        if ADMIN_ID:
+            try:
+                await app.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text="✅ Бот был перезапущен и готов к работе."
+                )
+                logger.info("Уведомление о запуске отправлено администратору")
+            except TelegramError as e:
+                logger.error(f"Не удалось отправить уведомление администратору: {e}")
         
         # Проверяем ID сообщений в канале
         message_ids = load_message_ids()
@@ -98,6 +106,7 @@ async def startup(app):
             logger.info("Приветственное сообщение уже существует и является единственным в канале")
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
+        # Не прерываем запуск бота из-за ошибок в startup
 
 def main() -> None:
     """Запуск бота."""
