@@ -9,13 +9,8 @@
   ],
   "routes": [
     {
-      "src": "/",
-      "dest": "bot.py",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "X-Telegram-Bot-Api-Secret-Token"
-      }
+      "src": "/(.*)",
+      "dest": "bot.py"
     }
   ],
   "env": {
