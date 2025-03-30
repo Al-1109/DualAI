@@ -81,53 +81,38 @@ def create_menu_keyboard(language):
     
     return keyboard
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /start."""
-    # Проверяем наличие параметра языка
-    args = context.args
-    if args and args[0].startswith('lang_'):
-        # Получаем код языка из параметра
-        language = args[0].split('_')[1]
-        # Загружаем контент главного меню
-        content = load_content_file(f"Telegram_content/{language}/main_menu.md")
-        # Создаем клавиатуру меню
-        keyboard = create_menu_keyboard(language)
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        # Сохраняем язык и страницу
-        context.user_data['language'] = language
-        context.user_data['current_page'] = 'main_menu'
-        # Отправляем фото с меню
-        with open('media/images/photo.jpg', 'rb') as photo:
-            await update.message.reply_photo(
-                photo=photo,
-                caption=content,
-                reply_markup=reply_markup
-            )
-    else:
-        # Первый вход - показываем выбор языка
-        welcome_message = load_content_file("Telegram_content/welcome_message.md")
-        keyboard = [
-            [
-                InlineKeyboardButton("🇬🇧 Start in English", callback_data="lang_en_main"),
-                InlineKeyboardButton("🇪🇸 Comenzar en Español", callback_data="lang_es_main"),
-            ],
-            [
-                InlineKeyboardButton("🇩🇪 Auf Deutsch starten", callback_data="lang_de_main"),
-                InlineKeyboardButton("🇫🇷 Commencer en Français", callback_data="lang_fr_main"),
-            ],
-            [
-                InlineKeyboardButton("🇷🇺 Начать на русском", callback_data="lang_ru_main"),
-            ]
+async def show_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показывает приветственное сообщение при первом входе пользователя"""
+    # Загружаем приветственное сообщение
+    welcome_message = load_content_file("Telegram_content/welcome_message.md")
+    
+    # Создаем клавиатуру для выбора языка
+    keyboard = [
+        [
+            InlineKeyboardButton("🇬🇧 Start in English", callback_data="lang_en_main"),
+            InlineKeyboardButton("🇪🇸 Comenzar en Español", callback_data="lang_es_main"),
+        ],
+        [
+            InlineKeyboardButton("🇩🇪 Auf Deutsch starten", callback_data="lang_de_main"),
+            InlineKeyboardButton("🇫🇷 Commencer en Français", callback_data="lang_fr_main"),
+        ],
+        [
+            InlineKeyboardButton("🇷🇺 Начать на русском", callback_data="lang_ru_main"),
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        context.user_data['current_page'] = 'welcome'
-        # Отправляем фото с приветствием
-        with open('media/images/photo.jpg', 'rb') as photo:
-            await update.message.reply_photo(
-                photo=photo,
-                caption=welcome_message,
-                reply_markup=reply_markup
-            )
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Сбрасываем текущую страницу пользователя
+    context.user_data['current_page'] = 'welcome'
+    
+    # Отправляем фото с приветственным сообщением и клавиатурой
+    with open('media/images/photo.jpg', 'rb') as photo:
+        await update.message.reply_photo(
+            photo=photo,
+            caption=welcome_message,
+            reply_markup=reply_markup
+        )
 
 async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора языка."""
