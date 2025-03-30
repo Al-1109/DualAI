@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from telegram.error import TelegramError
+import hmac
 
 # Импортируем утилиты
 from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages, send_photo_to_channel
@@ -26,6 +27,7 @@ load_dotenv()
 IS_TEST_ENV = os.getenv("VERCEL_ENV") == "preview"
 BOT_TOKEN = os.getenv("TEST_TELEGRAM_BOT_TOKEN") if IS_TEST_ENV else os.getenv("TELEGRAM_BOT_TOKEN")
 BOT_USERNAME = os.getenv("TEST_TELEGRAM_BOT_USERNAME") if IS_TEST_ENV else None
+WEBHOOK_SECRET = os.getenv("TEST_WEBHOOK_SECRET") if IS_TEST_ENV else None
 
 if not BOT_TOKEN:
     raise ValueError("Bot token not configured. Please set TEST_TELEGRAM_BOT_TOKEN for test environment or TELEGRAM_BOT_TOKEN for production.")
@@ -33,6 +35,7 @@ if not BOT_TOKEN:
 # Логируем информацию о текущем окружении
 logger.info(f"Running in {'TEST' if IS_TEST_ENV else 'PRODUCTION'} environment")
 logger.info(f"Using bot username: {BOT_USERNAME if BOT_USERNAME else 'Not configured'}")
+logger.info(f"Webhook secret configured: {bool(WEBHOOK_SECRET)}")
 
 # Константы для путей
 WELCOME_IMAGE_PATH = "media/images/photo.jpg"
@@ -194,6 +197,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(
         f"В будущем я смогу отвечать на ваши вопросы. Пока что используйте меню."
     )
+
+def verify_telegram_request(request) -> bool:
+    """Verify that the request came from Telegram using the secret token."""
+    if not BOT_TOKEN or not WEBHOOK_SECRET:
+        return False
+        
+    # Get token from header
+    token = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
+    if not token:
+        return False
+        
+    # Compare tokens using constant time comparison
+    return hmac.compare_digest(token, WEBHOOK_SECRET)
 
 if __name__ == '__main__':
     main()
