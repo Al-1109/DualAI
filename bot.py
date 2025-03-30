@@ -9,7 +9,7 @@ from telegram.error import TelegramError
 from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages
 
 # Импортируем наши обработчики
-from handlers.client import start_command, language_callback, menu_callback, show_welcome
+from handlers.client import show_welcome, language_callback, menu_callback
 
 # Настройка логирования
 logging.basicConfig(
@@ -113,19 +113,10 @@ def main() -> None:
     # Создаем приложение
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Регистрируем обработчики команд
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("sendtochannel", admin_send_to_channel))
-    
-    # Обработчики коллбэков от inline кнопок
-    application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
-    application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
-    
-    # Обработчик для неизвестных команд
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
-    
-    # Обработчик текстовых сообщений
+    # Добавляем обработчики
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, show_welcome))
+    application.add_handler(CallbackQueryHandler(language_callback, pattern="^lang_"))
+    application.add_handler(CallbackQueryHandler(menu_callback, pattern="^menu_"))
 
     # Добавляем функцию, которая выполнится при запуске бота
     application.post_init = startup
