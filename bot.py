@@ -60,6 +60,15 @@ def verify_telegram_request(request_headers, request_body):
         
     return True
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик текстовых сообщений."""
+    # В будущем здесь будет обработка естественного языка через OpenAI
+    user_language = context.user_data.get('language', 'en')
+    
+    await update.message.reply_text(
+        f"В будущем я смогу отвечать на ваши вопросы. Пока что используйте меню."
+    )
+
 # Register handlers
 application.add_handler(CommandHandler("start", start_command))
 application.add_handler(CallbackQueryHandler(language_callback, pattern=r'^lang_'))
@@ -67,3 +76,12 @@ application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
 
 # Text message handler
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+def main() -> None:
+    """Запуск бота в режиме polling."""
+    # Запускаем бота
+    logger.info(f"Bot started in {'TEST' if IS_TEST_ENV else 'PRODUCTION'} environment")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+if __name__ == "__main__":
+    main()
