@@ -6,6 +6,9 @@ from telegram.ext import ContextTypes
 # Импортируем функции из utils вместо bot
 from utils import send_to_channel, CHANNEL_ID, load_content_file
 
+# ID администратора из переменных окружения
+ADMIN_ID = int(os.getenv('ADMIN_ID'))
+
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -80,34 +83,51 @@ def create_menu_keyboard(language):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start."""
-    # Загружаем приветственное сообщение с выбором языка
-    welcome_message = load_content_file("Telegram_content/welcome_message.md")
-    
-    # Создаем клавиатуру для выбора языка
-    keyboard = [
-        [
-            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en_main"),
-            InlineKeyboardButton("🇪🇸 Español", callback_data="lang_es_main"),
-        ],
-        [
-            InlineKeyboardButton("🇩🇪 Deutsch", callback_data="lang_de_main"),
-            InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr_main"),
-        ],
-        [
-            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru_main"),
+    # Проверяем наличие параметра языка
+    args = context.args
+    if args and args[0].startswith('lang_'):
+        # Получаем код языка из параметра
+        language = args[0].split('_')[1]
+        # Загружаем контент главного меню
+        content = load_content_file(f"Telegram_content/{language}/main_menu.md")
+        # Создаем клавиатуру меню
+        keyboard = create_menu_keyboard(language)
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        # Сохраняем язык и страницу
+        context.user_data['language'] = language
+        context.user_data['current_page'] = 'main_menu'
+        # Отправляем фото с меню
+        with open('media/images/photo.jpg', 'rb') as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption=content,
+                reply_markup=reply_markup
+            )
+    else:
+        # Первый вход - показываем выбор языка
+        welcome_message = load_content_file("Telegram_content/welcome_message.md")
+        keyboard = [
+            [
+                InlineKeyboardButton("🇬🇧 Start in English", callback_data="lang_en_main"),
+                InlineKeyboardButton("🇪🇸 Comenzar en Español", callback_data="lang_es_main"),
+            ],
+            [
+                InlineKeyboardButton("🇩🇪 Auf Deutsch starten", callback_data="lang_de_main"),
+                InlineKeyboardButton("🇫🇷 Commencer en Français", callback_data="lang_fr_main"),
+            ],
+            [
+                InlineKeyboardButton("🇷🇺 Начать на русском", callback_data="lang_ru_main"),
+            ]
         ]
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    # Сбрасываем текущую страницу пользователя
-    context.user_data['current_page'] = 'welcome'
-    
-    # Отправляем приветственное сообщение с клавиатурой
-    await update.message.reply_text(
-        text=welcome_message,
-        reply_markup=reply_markup
-    )
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        context.user_data['current_page'] = 'welcome'
+        # Отправляем фото с приветствием
+        with open('media/images/photo.jpg', 'rb') as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption=welcome_message,
+                reply_markup=reply_markup
+            )
 
 async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора языка."""
@@ -125,7 +145,7 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # Определяем текущую страницу пользователя
     current_page = context.user_data.get('current_page', 'welcome')
     
-    # Если режим 'current', сохраняем текущую страницу
+    # Если режим 'current' - это смена языка из меню
     if mode == 'current':
         # Если мы находимся в подменю, остаемся на той же странице
         if current_page in ['properties', 'contact', 'faq', 'news']:
@@ -133,25 +153,44 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await show_submenu_page(query, context, current_page, language)
             return
     
-    # В остальных случаях показываем главное меню
-    menu_content = load_content_file(f"Telegram_content/{language}/main_menu.md")
-    keyboard = create_menu_keyboard(language)
+    # Создаем базовую клавиатуру с кнопками меню
+    keyboard = [
+        [InlineKeyboardButton("🏠 Объекты", callback_data="menu_properties")],
+        [InlineKeyboardButton("📝 Связаться с нами", callback_data="menu_contact")],
+        [InlineKeyboardButton("❓ FAQ", callback_data="menu_faq")],
+        [InlineKeyboardButton("📰 Новости", callback_data="menu_news")],
+    ]
+    
+    # Проверяем, является ли пользователь администратором бота
+    chat_member = await context.bot.get_chat_member(query.message.chat.id, query.from_user.id)
+    if chat_member.status in ['creator', 'administrator']:
+        keyboard.append([InlineKeyboardButton("⚙️ Панель Администратора", callback_data="menu_admin")])
+    
+    # Добавляем языковые кнопки в нижнюю часть меню
+    keyboard.append([
+        InlineKeyboardButton("🇬🇧", callback_data="lang_en_current"),
+        InlineKeyboardButton("🇪🇸", callback_data="lang_es_current"),
+        InlineKeyboardButton("🇩🇪", callback_data="lang_de_current"),
+        InlineKeyboardButton("🇫🇷", callback_data="lang_fr_current"),
+        InlineKeyboardButton("🇷🇺", callback_data="lang_ru_current"),
+    ])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Загружаем контент главного меню на выбранном языке
+    content = load_content_file(f"Telegram_content/{language}/main_menu.md")
     
     # Обновляем текущую страницу
     context.user_data['current_page'] = 'main_menu'
     
-    # Проверяем, является ли это сообщение сообщением канала
-    if query.message.chat.id == CHANNEL_ID:
-        # Используем функцию send_to_channel для обновления сообщения в канале
-        message_key = f"main_menu_{language}"
-        await send_to_channel(context, menu_content, reply_markup, message_key)
-    else:
-        # Это личный чат с пользователем, обновляем сообщение напрямую
-        await query.edit_message_text(
-            text=menu_content,
+    # Отправляем новое сообщение с фото и удаляем старое
+    with open('media/images/photo.jpg', 'rb') as photo:
+        await query.message.reply_photo(
+            photo=photo,
+            caption=content,
             reply_markup=reply_markup
         )
+    await query.message.delete()
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора пункта меню."""
