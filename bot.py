@@ -8,6 +8,7 @@ from telegram.error import TelegramError
 import hmac
 from http.server import BaseHTTPRequestHandler
 import json
+from http import HTTPStatus
 
 # Импортируем утилиты
 from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages, send_photo_to_channel
@@ -165,7 +166,7 @@ def main() -> None:
         # Добавляем тестовые команды
         application.add_handler(CommandHandler("test", lambda update, context: update.message.reply_text("Test command received!")))
         application.add_handler(CommandHandler("env", lambda update, context: update.message.reply_text(
-            f"Environment: {ENVIRONMENT}\nVercel: {'YES' if os.getenv('VERCEL') else 'NO'}\nAdmin ID: {ADMIN_ID}"
+            f"Environment: {'TEST' if IS_TEST_ENV else 'PRODUCTION'}\nVercel: {'YES' if os.getenv('VERCEL') else 'NO'}"
         )))
         application.add_handler(CommandHandler("ping", lambda update, context: update.message.reply_text("Pong! 🏓")))
         application.add_handler(CommandHandler("echo", lambda update, context: update.message.reply_text(
@@ -210,16 +211,22 @@ async def handle_webhook(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error handling webhook: {e}")
         return {"status": "error", "message": str(e)}
 
-def verify_telegram_request(request):
-    """Проверяет, что запрос пришел от Telegram"""
+def verify_telegram_request(request_headers, request_body):
+    """Verify that the request is from Telegram using the secret token."""
     if not WEBHOOK_SECRET:
-        return True  # Если секрет не настроен, пропускаем проверку
-    
-    secret_token = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
-    if not secret_token:
+        logger.warning("Webhook secret not configured")
+        return True  # Allow all requests if secret is not configured
+        
+    token = request_headers.get('X-Telegram-Bot-Api-Secret-Token')
+    if not token:
+        logger.warning("No secret token in request headers")
         return False
-    
-    return hmac.compare_digest(secret_token, WEBHOOK_SECRET)
+        
+    if not hmac.compare_digest(token, WEBHOOK_SECRET):
+        logger.warning("Invalid secret token")
+        return False
+        
+    return True
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -232,61 +239,41 @@ class handler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self):
-        """Обработчик GET запросов для проверки доступности webhook"""
-        try:
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "ok",
-                "message": "Webhook endpoint is available",
-                "environment": "test" if IS_TEST_ENV else "production"
-            }).encode())
-        except Exception as e:
-            logger.error(f"Error in GET handler: {e}")
-            self.send_error(500, str(e))
-        return
+        """Handle GET requests - return a simple status message."""
+        self.send_response(HTTPStatus.OK)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        response = {'status': 'ok', 'message': 'Webhook is ready'}
+        self.wfile.write(json.dumps(response).encode())
 
     def do_POST(self):
-        """Обработчик POST запросов от Telegram"""
+        """Handle POST requests from Telegram."""
+        content_length = int(self.headers.get('Content-Length', 0))
+        request_body = self.rfile.read(content_length).decode()
+        
+        # Verify the request is from Telegram
+        if not verify_telegram_request(self.headers, request_body):
+            self.send_response(HTTPStatus.UNAUTHORIZED)
+            self.end_headers()
+            return
+
         try:
-            # Проверяем, что запрос от Telegram
-            if not verify_telegram_request(self):
-                self.send_response(401)
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                return
-
-            # Читаем тело запроса
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            update_data = json.loads(post_data.decode('utf-8'))
-
-            # Создаем объект Update
-            update = Update.de_json(update_data, Application.builder().token(BOT_TOKEN).build())
-
-            # Обрабатываем обновление
-            asyncio.run(handle_webhook(update, None))
-
-            # Отправляем успешный ответ
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            update = Update.de_json(json.loads(request_body), application.bot)
+            asyncio.run(application.process_update(update))
+            
+            self.send_response(HTTPStatus.OK)
+            self.send_header('Content-Type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok"}).encode())
-
+            response = {'status': 'ok'}
+            self.wfile.write(json.dumps(response).encode())
+            
         except Exception as e:
-            logger.error(f"Error processing webhook: {e}")
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            logger.error(f"Error processing update: {e}")
+            self.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
+            self.send_header('Content-Type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "error",
-                "message": str(e),
-                "environment": "test" if IS_TEST_ENV else "production"
-            }).encode())
+            response = {'status': 'error', 'message': str(e)}
+            self.wfile.write(json.dumps(response).encode())
 
 if __name__ == '__main__':
     main()
