@@ -28,11 +28,10 @@ WELCOME_IMAGE_PATH = "media/images/photo.jpg"
 
 async def send_welcome_to_channel(context):
     """
-    Отправка приветственного сообщения с кнопками перехода к боту на разных языках.
-    Сообщение не закрепляется, но является единственным в канале.
+    Отправка первого сообщения в канале с кнопками выбора языка.
     """
-    logger.info("Отправляем приветственное сообщение с кнопками перехода к боту...")
-    welcome_message = load_content_file("Telegram_content/welcome_message.md")
+    logger.info("Отправляем первое сообщение в канал с кнопками выбора языка...")
+    welcome_message = load_content_file("Telegram_content/channel_first_message.md")
     
     # Получаем имя бота из контекста
     bot_username = context.bot.username
@@ -91,10 +90,10 @@ async def send_welcome_to_channel(context):
         )
         message_ids = {"welcome_message": message.message_id, "welcome_has_photo": False, "all_messages": [message.message_id]}
     
-    # Сохраняем новое состояние сообщений (только одно сообщение в канале)
+    # Сохраняем новое состояние сообщений
     save_message_ids(message_ids)
     
-    logger.info(f"Отправлено приветственное сообщение (ID: {message.message_id})")
+    logger.info(f"Отправлено первое сообщение в канал (ID: {message.message_id})")
     return message.message_id
 
 async def admin_send_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
