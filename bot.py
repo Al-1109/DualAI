@@ -21,7 +21,18 @@ logger = logging.getLogger(__name__)
 
 # Загрузка переменных окружения
 load_dotenv()
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Определяем, в каком окружении работаем (тестовое или продакшен)
+IS_TEST_ENV = os.getenv("VERCEL_ENV") == "preview"
+BOT_TOKEN = os.getenv("TEST_TELEGRAM_BOT_TOKEN") if IS_TEST_ENV else os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_USERNAME = os.getenv("TEST_TELEGRAM_BOT_USERNAME") if IS_TEST_ENV else None
+
+if not BOT_TOKEN:
+    raise ValueError("Bot token not configured. Please set TEST_TELEGRAM_BOT_TOKEN for test environment or TELEGRAM_BOT_TOKEN for production.")
+
+# Логируем информацию о текущем окружении
+logger.info(f"Running in {'TEST' if IS_TEST_ENV else 'PRODUCTION'} environment")
+logger.info(f"Using bot username: {BOT_USERNAME if BOT_USERNAME else 'Not configured'}")
 
 # Константы для путей
 WELCOME_IMAGE_PATH = "media/images/photo.jpg"
@@ -121,7 +132,7 @@ async def startup(app):
 def main() -> None:
     """Запуск бота."""
     # Создаем приложение
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    application = Application.builder().token(BOT_TOKEN).build()
 
     # Импортируем административные обработчики
     from handlers import admin
@@ -139,8 +150,22 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(admin.admin_content_management, pattern=r'^admin_content$'))
     application.add_handler(CallbackQueryHandler(admin.admin_statistics, pattern=r'^admin_stats$'))
     application.add_handler(CallbackQueryHandler(admin.admin_notifications, pattern=r'^admin_notifications$'))
-    application.add_handler(CallbackQueryHandler(admin.admin_switch_environment, pattern=r'^admin_switch_env$'))
     application.add_handler(CallbackQueryHandler(admin.admin_back_to_main, pattern=r'^admin_back_to_main$'))
+    
+    # Обработчики тестовых команд (только для тестового окружения)
+    if IS_TEST_ENV:
+        application.add_handler(CallbackQueryHandler(admin.admin_test_commands, pattern=r'^admin_test_commands$'))
+        application.add_handler(CallbackQueryHandler(admin.admin_test_refresh, pattern=r'^admin_test_refresh$'))
+        application.add_handler(CallbackQueryHandler(admin.admin_test_send, pattern=r'^admin_test_send$'))
+        # Добавляем тестовые команды
+        application.add_handler(CommandHandler("test", lambda update, context: update.message.reply_text("Test command received!")))
+        application.add_handler(CommandHandler("env", lambda update, context: update.message.reply_text(
+            f"Environment: {ENVIRONMENT}\nVercel: {'YES' if os.getenv('VERCEL') else 'NO'}\nAdmin ID: {ADMIN_ID}"
+        )))
+        application.add_handler(CommandHandler("ping", lambda update, context: update.message.reply_text("Pong! 🏓")))
+        application.add_handler(CommandHandler("echo", lambda update, context: update.message.reply_text(
+            " ".join(context.args) if context.args else "Usage: /echo [text]"
+        )))
     
     # Обработчик для неизвестных команд
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
@@ -152,7 +177,7 @@ def main() -> None:
     application.post_init = startup
 
     # Запускаем бота
-    logger.info("Bot started")
+    logger.info(f"Bot started in {ENVIRONMENT} environment")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

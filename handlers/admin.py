@@ -1,6 +1,8 @@
 import logging
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from datetime import datetime
 
 # Импортируем функции из utils
 from utils import load_content_file
@@ -12,9 +14,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Список администраторов (ID пользователей Telegram)
-# В будущем этот список можно перенести в файл конфигурации или БД
-ADMIN_IDS = [847964518]  # ID бота
+# Определяем окружение
+IS_TEST_ENV = os.getenv("VERCEL_ENV") == "preview"
+ENVIRONMENT = "test" if IS_TEST_ENV else "production"
+
+# Список администраторов из переменных окружения
+ADMIN_ID = os.getenv("ADMIN_ID")
+ADMIN_IDS = [int(ADMIN_ID)] if ADMIN_ID else [847964518]
 
 async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик вызова административной панели."""
@@ -30,28 +36,25 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     # Получаем язык пользователя
     language = context.user_data.get('language', 'en')
     
-    # Получаем текущее окружение (по умолчанию 'production')
-    environment = context.user_data.get('environment', 'production')
-    
     # Тексты панели на разных языках
     panel_title = {
-        'en': "⚙️ Administrative Panel",
-        'es': "⚙️ Panel de Administración",
-        'de': "⚙️ Administrationsbereich",
-        'fr': "⚙️ Panneau d'Administration",
-        'ru': "⚙️ Панель Администратора"
+        'en': f"⚙️ Administrative Panel ({ENVIRONMENT.upper()})",
+        'es': f"⚙️ Panel de Administración ({ENVIRONMENT.upper()})",
+        'de': f"⚙️ Administrationsbereich ({ENVIRONMENT.upper()})",
+        'fr': f"⚙️ Panneau d'Administration ({ENVIRONMENT.upper()})",
+        'ru': f"⚙️ Панель Администратора ({ENVIRONMENT.upper()})"
     }
     
-    env_status = {
-        'en': f"Current Environment: {'PRODUCTION' if environment == 'production' else 'DEVELOPMENT'}",
-        'es': f"Entorno Actual: {'PRODUCCIÓN' if environment == 'production' else 'DESARROLLO'}",
-        'de': f"Aktuelle Umgebung: {'PRODUKTION' if environment == 'production' else 'ENTWICKLUNG'}",
-        'fr': f"Environnement Actuel: {'PRODUCTION' if environment == 'production' else 'DÉVELOPPEMENT'}",
-        'ru': f"Текущее окружение: {'ПРОДАКШН' if environment == 'production' else 'РАЗРАБОТКА'}"
+    env_info = {
+        'en': f"Environment: {ENVIRONMENT.upper()}\nVercel Deployment: {'YES' if os.getenv('VERCEL') else 'NO'}\nAdmin ID: {ADMIN_ID}",
+        'es': f"Entorno: {ENVIRONMENT.upper()}\nDespliegue Vercel: {'SÍ' if os.getenv('VERCEL') else 'NO'}\nID Admin: {ADMIN_ID}",
+        'de': f"Umgebung: {ENVIRONMENT.upper()}\nVercel Deployment: {'JA' if os.getenv('VERCEL') else 'NEIN'}\nAdmin ID: {ADMIN_ID}",
+        'fr': f"Environnement: {ENVIRONMENT.upper()}\nDéploiement Vercel: {'OUI' if os.getenv('VERCEL') else 'NON'}\nID Admin: {ADMIN_ID}",
+        'ru': f"Окружение: {ENVIRONMENT.upper()}\nРазвёртывание Vercel: {'ДА' if os.getenv('VERCEL') else 'НЕТ'}\nID Админа: {ADMIN_ID}"
     }
     
     # Создаем сообщение панели администратора
-    message = f"{panel_title.get(language, '⚙️ Administrative Panel')}\n\n{env_status.get(language, '')}"
+    message = f"{panel_title.get(language, panel_title['en'])}\n\n{env_info.get(language, env_info['en'])}"
     
     # Создаем клавиатуру для административной панели
     # Названия кнопок на разных языках
@@ -77,12 +80,12 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             'fr': "🔔 Notifications",
             'ru': "🔔 Уведомления"
         },
-        'switch_env': {
-            'en': "🔄 Switch to " + ("DEVELOPMENT" if environment == 'production' else "PRODUCTION"),
-            'es': "🔄 Cambiar a " + ("DESARROLLO" if environment == 'production' else "PRODUCCIÓN"),
-            'de': "🔄 Wechseln zu " + ("ENTWICKLUNG" if environment == 'production' else "PRODUKTION"),
-            'fr': "🔄 Passer à " + ("DÉVELOPPEMENT" if environment == 'production' else "PRODUCTION"),
-            'ru': "🔄 Переключить на " + ("РАЗРАБОТКУ" if environment == 'production' else "ПРОДАКШН")
+        'test_commands': {
+            'en': "🧪 Test Commands",
+            'es': "🧪 Comandos de Prueba",
+            'de': "🧪 Testbefehle",
+            'fr': "🧪 Commandes de Test",
+            'ru': "🧪 Тестовые Команды"
         },
         'back': {
             'en': "🔙 Back to Main Menu",
@@ -93,19 +96,24 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         }
     }
     
-    # Формируем клавиатуру
+    # Формируем базовую клавиатуру
     keyboard = [
         [InlineKeyboardButton(button_texts['content'].get(language, button_texts['content']['en']), 
                              callback_data="admin_content")],
         [InlineKeyboardButton(button_texts['stats'].get(language, button_texts['stats']['en']), 
                              callback_data="admin_stats")],
         [InlineKeyboardButton(button_texts['notifications'].get(language, button_texts['notifications']['en']), 
-                             callback_data="admin_notifications")],
-        [InlineKeyboardButton(button_texts['switch_env'].get(language, button_texts['switch_env']['en']), 
-                             callback_data="admin_switch_env")],
-        [InlineKeyboardButton(button_texts['back'].get(language, button_texts['back']['en']), 
-                             callback_data="admin_back_to_main")]
+                             callback_data="admin_notifications")]
     ]
+    
+    # Добавляем кнопку тестовых команд только в тестовом окружении
+    if IS_TEST_ENV:
+        keyboard.append([InlineKeyboardButton(button_texts['test_commands'].get(language, button_texts['test_commands']['en']), 
+                                            callback_data="admin_test_commands")])
+    
+    # Добавляем кнопку возврата
+    keyboard.append([InlineKeyboardButton(button_texts['back'].get(language, button_texts['back']['en']), 
+                                        callback_data="admin_back_to_main")])
     
     # Проверяем, содержит ли сообщение фото
     has_photo = hasattr(query.message, 'photo') and query.message.photo
@@ -349,3 +357,123 @@ async def admin_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
+
+async def admin_test_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик тестовых команд (доступен только в тестовом окружении)."""
+    query = update.callback_query
+    await query.answer()
+    
+    # Проверяем права администратора
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        await query.message.reply_text("У вас нет прав для доступа к тестовым командам.")
+        return
+    
+    # Проверяем, что мы в тестовом окружении
+    if not IS_TEST_ENV:
+        await query.message.reply_text("Тестовые команды доступны только в тестовом окружении.")
+        return
+    
+    # Получаем язык пользователя
+    language = context.user_data.get('language', 'en')
+    
+    # Тексты для тестовых команд
+    test_commands_text = {
+        'en': """🧪 Test Commands
+
+Available commands:
+/test - Basic test command
+/env - Show environment info
+/ping - Check bot response
+/echo [text] - Echo back your message
+/admin - Show admin panel
+
+Environment: TEST
+Vercel: {vercel}
+Admin ID: {admin_id}""",
+        'ru': """🧪 Тестовые Команды
+
+Доступные команды:
+/test - Базовая тестовая команда
+/env - Показать информацию об окружении
+/ping - Проверить ответ бота
+/echo [текст] - Отправить ваше сообщение обратно
+/admin - Показать панель администратора
+
+Окружение: ТЕСТ
+Vercel: {vercel}
+ID Админа: {admin_id}"""
+    }
+    
+    # Кнопки
+    button_texts = {
+        'en': {
+            'back': "🔙 Back to Admin Panel",
+            'refresh': "🔄 Refresh Status",
+            'send_test': "📤 Send Test Message"
+        },
+        'ru': {
+            'back': "🔙 Вернуться в Панель Администратора",
+            'refresh': "🔄 Обновить Статус",
+            'send_test': "📤 Отправить Тестовое Сообщение"
+        }
+    }
+    
+    # Формируем текст с актуальными данными
+    message = test_commands_text.get(language, test_commands_text['en']).format(
+        vercel="YES" if os.getenv('VERCEL') else "NO",
+        admin_id=ADMIN_ID
+    )
+    
+    # Создаем клавиатуру
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                button_texts.get(language, button_texts['en'])['refresh'],
+                callback_data="admin_test_refresh"
+            ),
+            InlineKeyboardButton(
+                button_texts.get(language, button_texts['en'])['send_test'],
+                callback_data="admin_test_send"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                button_texts.get(language, button_texts['en'])['back'],
+                callback_data="admin_panel"
+            )
+        ]
+    ]
+    
+    try:
+        await query.edit_message_text(
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при отображении тестовых команд: {e}")
+        await query.message.reply_text(
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+
+async def admin_test_refresh(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обновление статуса тестового окружения."""
+    query = update.callback_query
+    await query.answer("Refreshing status...")
+    await admin_test_commands(update, context)
+
+async def admin_test_send(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Отправка тестового сообщения."""
+    query = update.callback_query
+    await query.answer()
+    
+    test_message = f"""🧪 Test Message
+Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Environment: {ENVIRONMENT.upper()}
+Vercel: {"YES" if os.getenv('VERCEL') else "NO"}
+Admin ID: {ADMIN_ID}"""
+    
+    await query.message.reply_text(test_message)
