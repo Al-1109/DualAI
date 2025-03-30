@@ -17,6 +17,7 @@
 1. **Документация проекта**
    - `PROJECT_CONTEXT.md` - общий контекст проекта
    - `DUALAI_DEVELOPMENT.md` - архитектура и правила разработки
+   - `BOT_FUNCTIONALITY.md` - функциональность Telegram бота
    - `README.md` - основное описание проекта
 
 2. **Конфигурация**
@@ -33,7 +34,10 @@
 - GitHub репозиторий: Al-1109/DualAI
 - Production: dualal.vercel.app
 - Development: preview environments для каждой feature-ветки
-- Telegram бот: @Alba_Cash (ID: 847964518)
+- Telegram компоненты:
+  - Основной бот: @MirasolEstate
+  - Канал: @MirasolEstate
+  - Тестовый бот: @mirasol_test_bot
 
 ## Стратегия разработки
 ### Ветки и окружения
