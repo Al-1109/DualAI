@@ -6,6 +6,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from telegram.error import TelegramError
 import hmac
+from http.server import BaseHTTPRequestHandler
+import json
 
 # Импортируем утилиты
 from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages, send_photo_to_channel
@@ -198,18 +200,68 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         f"В будущем я смогу отвечать на ваши вопросы. Пока что используйте меню."
     )
 
-def verify_telegram_request(request) -> bool:
-    """Verify that the request came from Telegram using the secret token."""
-    if not BOT_TOKEN or not WEBHOOK_SECRET:
+async def handle_webhook(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик webhook запросов от Telegram"""
+    logger.info("Received webhook update")
+    try:
+        await update.message.reply_text("Webhook received successfully!")
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error handling webhook: {e}")
+        return {"status": "error", "message": str(e)}
+
+def verify_telegram_request(request):
+    """Проверяет, что запрос пришел от Telegram"""
+    if not WEBHOOK_SECRET:
+        return True  # Если секрет не настроен, пропускаем проверку
+    
+    secret_token = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
+    if not secret_token:
         return False
-        
-    # Get token from header
-    token = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
-    if not token:
-        return False
-        
-    # Compare tokens using constant time comparison
-    return hmac.compare_digest(token, WEBHOOK_SECRET)
+    
+    return hmac.compare_digest(secret_token, WEBHOOK_SECRET)
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        """Обработчик GET запросов для проверки доступности webhook"""
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "ok", "message": "Webhook endpoint is available"}).encode())
+        return
+
+    def do_POST(self):
+        """Обработчик POST запросов от Telegram"""
+        try:
+            # Проверяем, что запрос от Telegram
+            if not verify_telegram_request(self):
+                self.send_response(401)
+                self.end_headers()
+                return
+
+            # Читаем тело запроса
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            update_data = json.loads(post_data.decode('utf-8'))
+
+            # Создаем объект Update
+            update = Update.de_json(update_data, Application.builder().token(BOT_TOKEN).build())
+
+            # Обрабатываем обновление
+            asyncio.run(handle_webhook(update, None))
+
+            # Отправляем успешный ответ
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode())
+
+        except Exception as e:
+            logger.error(f"Error processing webhook: {e}")
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode())
 
 if __name__ == '__main__':
     main()
