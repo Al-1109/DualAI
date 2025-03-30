@@ -1,6 +1,7 @@
 import os
 import logging
 import hmac
+import asyncio
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
@@ -8,6 +9,7 @@ from telegram.error import TelegramError
 
 # Импортируем утилиты
 from utils import load_message_ids, save_message_ids, load_content_file, send_to_channel, CHANNEL_ID, clean_all_channel_messages, send_photo_to_channel
+from utils.keep_alive import keep_alive
 
 # Импортируем наши обработчики
 from handlers.client import start_command, language_callback, menu_callback
@@ -77,11 +79,14 @@ application.add_handler(CallbackQueryHandler(menu_callback, pattern=r'^menu_'))
 # Text message handler
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-def main() -> None:
+async def main() -> None:
     """Запуск бота в режиме polling."""
+    # Запускаем keep-alive в фоновом режиме
+    asyncio.create_task(keep_alive())
+    
     # Запускаем бота
     logger.info(f"Bot started in {'TEST' if IS_TEST_ENV else 'PRODUCTION'} environment")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
