@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 import os
 import requests
+import traceback
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -37,63 +38,77 @@ def send_message(chat_id, text, reply_markup=None):
         return result
     except Exception as e:
         print(f"Error sending message: {str(e)}")
+        traceback.print_exc()
         return {"ok": False, "error": str(e)}
 
 def process_update(update):
     """Обрабатывает обновление от Telegram."""
     print(f"Processing update: {json.dumps(update)}")
     
-    # Обработка сообщения
-    if 'message' in update and 'text' in update['message']:
-        chat_id = update['message']['chat']['id']
-        message_text = update['message']['text']
-        user_name = update['message']['from'].get('first_name', 'пользователь')
-        
-        # Логирование сообщения
-        print(f"Получено сообщение от {user_name} (ID: {chat_id}): {message_text}")
-        
-        # Формируем ответ в зависимости от полученного сообщения
-        if message_text == '/start':
-            reply_text = f"Привет, {user_name}! Я тестовый бот для проекта DualAI. Рад приветствовать тебя!"
+    try:
+        # Обработка сообщения
+        if 'message' in update and 'text' in update['message']:
+            chat_id = update['message']['chat']['id']
+            message_text = update['message']['text']
+            user_name = update['message']['from'].get('first_name', 'пользователь')
             
-            # Создаем клавиатуру с кнопками
-            keyboard = {
-                "inline_keyboard": [
-                    [
-                        {"text": "Информация о боте", "callback_data": "info"}
-                    ],
-                    [
-                        {"text": "Тестовое сообщение", "callback_data": "test_message"}
+            # Логирование сообщения
+            print(f"Получено сообщение от {user_name} (ID: {chat_id}): {message_text}")
+            
+            # Формируем ответ в зависимости от полученного сообщения
+            if message_text == '/start':
+                reply_text = f"Привет, {user_name}! Я тестовый бот для проекта DualAI. Рад приветствовать тебя!"
+                
+                # Создаем клавиатуру с кнопками
+                keyboard = {
+                    "inline_keyboard": [
+                        [
+                            {"text": "Информация о боте", "callback_data": "info"}
+                        ],
+                        [
+                            {"text": "Тестовое сообщение", "callback_data": "test_message"}
+                        ]
                     ]
-                ]
-            }
+                }
+                
+                # Отправляем ответ с клавиатурой
+                result = send_message(chat_id, reply_text, keyboard)
+                print(f"Result of sending /start response: {json.dumps(result)}")
+                return result
+            else:
+                # Для всех остальных сообщений просто отправляем эхо
+                reply_text = f"Вы сказали: {message_text}\n\nЭто тестовый ответ от DualAI webhook на Vercel."
+                result = send_message(chat_id, reply_text)
+                print(f"Result of sending echo response: {json.dumps(result)}")
+                return result
+        
+        # Обработка callback запросов (нажатия на inline кнопки)
+        elif 'callback_query' in update:
+            callback_id = update['callback_query']['id']
+            chat_id = update['callback_query']['message']['chat']['id']
+            callback_data = update['callback_query']['data']
+            user_name = update['callback_query']['from'].get('first_name', 'пользователь')
             
-            # Отправляем ответ с клавиатурой
-            return send_message(chat_id, reply_text, keyboard)
-        else:
-            # Для всех остальных сообщений просто отправляем эхо
-            reply_text = f"Вы сказали: {message_text}\n\nЭто тестовый ответ от DualAI webhook на Vercel."
-            return send_message(chat_id, reply_text)
-    
-    # Обработка callback запросов (нажатия на inline кнопки)
-    elif 'callback_query' in update:
-        callback_id = update['callback_query']['id']
-        chat_id = update['callback_query']['message']['chat']['id']
-        callback_data = update['callback_query']['data']
-        user_name = update['callback_query']['from'].get('first_name', 'пользователь')
+            # Логирование callback
+            print(f"Получен callback от {user_name} (ID: {chat_id}): {callback_data}")
+            
+            # Отвечаем в зависимости от callback_data
+            if callback_data == 'info':
+                reply_text = "Это тестовый бот для проекта DualAI, размещенный на Vercel с использованием webhook."
+                result = send_message(chat_id, reply_text)
+                print(f"Result of sending info response: {json.dumps(result)}")
+                return result
+            elif callback_data == 'test_message':
+                reply_text = "Это тестовое сообщение. Webhook успешно работает!"
+                result = send_message(chat_id, reply_text)
+                print(f"Result of sending test message response: {json.dumps(result)}")
+                return result
         
-        # Логирование callback
-        print(f"Получен callback от {user_name} (ID: {chat_id}): {callback_data}")
-        
-        # Отвечаем в зависимости от callback_data
-        if callback_data == 'info':
-            reply_text = "Это тестовый бот для проекта DualAI, размещенный на Vercel с использованием webhook."
-            return send_message(chat_id, reply_text)
-        elif callback_data == 'test_message':
-            reply_text = "Это тестовое сообщение. Webhook успешно работает!"
-            return send_message(chat_id, reply_text)
-    
-    return {"ok": True, "message": "No action taken"}
+        return {"ok": True, "message": "No action taken"}
+    except Exception as e:
+        print(f"Error processing update: {str(e)}")
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -128,9 +143,9 @@ class handler(BaseHTTPRequestHandler):
             print(f"Тело запроса ({content_length} байт):")
             request_body = post_data.decode('utf-8')
             print(request_body)
-                
-            # Только если путь соответствует /api/webhook обрабатываем как телеграм-запрос
-            if self.path == "/api/webhook" or self.path == "/":
+            
+            # Пытаемся обработать все запросы POST как обновления от Telegram
+            try:
                 # Парсим JSON данные от Telegram
                 update = json.loads(request_body)
                 
@@ -139,9 +154,13 @@ class handler(BaseHTTPRequestHandler):
                 
                 # Обрабатываем обновление
                 result = process_update(update)
-            else:
-                print(f"Получен запрос на неожиданный путь: {self.path}")
-                result = {"warning": f"Unexpected path: {self.path}"}
+            except json.JSONDecodeError as e:
+                print(f"Ошибка декодирования JSON: {str(e)}")
+                result = {"ok": False, "error": f"Invalid JSON: {str(e)}"}
+            except Exception as e:
+                print(f"Ошибка обработки обновления: {str(e)}")
+                traceback.print_exc()
+                result = {"ok": False, "error": str(e)}
             
             # Отправляем HTTP ответ на webhook запрос
             self.send_response(200)
@@ -155,11 +174,14 @@ class handler(BaseHTTPRequestHandler):
                 'result': result
             }
             
-            self.wfile.write(json.dumps(response_data).encode())
+            response_json = json.dumps(response_data)
+            print(f"Отправляем ответ: {response_json}")
+            self.wfile.write(response_json.encode())
             return
         except Exception as e:
             # В случае ошибки отправляем 500 и информацию об ошибке
             print(f"Ошибка при обработке запроса: {str(e)}")
+            traceback.print_exc()
             self.send_response(500)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
