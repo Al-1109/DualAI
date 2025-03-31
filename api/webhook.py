@@ -55,116 +55,114 @@ def send_telegram_message(chat_id, text, reply_markup=None):
         logger.debug(traceback.format_exc())
         return {"ok": False, "error": str(e)}
 
-class handler(BaseHTTPRequestHandler):
-    def _set_headers(self, status_code=200):
-        """Устанавливает заголовки ответа."""
-        self.send_response(status_code)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-    
-    def _send_json_response(self, data):
-        """Отправляет JSON-ответ."""
-        self.wfile.write(json.dumps(data).encode())
-    
-    def _verify_telegram_webhook(self):
-        """Проверяет подлинность запроса от Telegram."""
-        if not WEBHOOK_SECRET:
-            logger.warning("Верификация пропущена: WEBHOOK_SECRET не настроен")
-            return True
+# Базовый обработчик для Vercel
+def handler(event, context):
+    """Обрабатывает запросы для Serverless функции Vercel."""
+    try:
+        # HTTP метод
+        method = event.get('method', 'UNKNOWN')
+        
+        # Обработка GET-запроса для проверки работоспособности
+        if method == 'GET':
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'status': 'ok',
+                    'message': 'Webhook активен',
+                    'timestamp': str(datetime.now()),
+                    'version': '1.2.0'
+                })
+            }
+        
+        # Обработка POST-запроса от Telegram
+        elif method == 'POST':
+            # Верификация запроса от Telegram
+            secret_header = event.get('headers', {}).get('x-telegram-bot-api-secret-token')
             
-        secret_header = self.headers.get('X-Telegram-Bot-Api-Secret-Token')
-        
-        if not secret_header:
-            logger.warning("Запрос не содержит заголовка X-Telegram-Bot-Api-Secret-Token")
-            return False
-            
-        return secret_header == WEBHOOK_SECRET
-    
-    def do_GET(self):
-        """Обработка GET-запроса - проверка работоспособности."""
-        self._set_headers()
-        
-        response_data = {
-            'status': 'ok',
-            'message': 'Webhook активен',
-            'timestamp': str(datetime.now()),
-            'version': '1.1.0'
-        }
-        
-        self._send_json_response(response_data)
-    
-    def do_POST(self):
-        """Обработка POST-запроса от Telegram."""
-        try:
-            # Верификация запроса
-            if not self._verify_telegram_webhook():
+            if WEBHOOK_SECRET and secret_header != WEBHOOK_SECRET:
                 logger.warning("Получен неверифицированный запрос")
-                self._set_headers(403)
-                self._send_json_response({'ok': False, 'error': 'Forbidden'})
-                return
-                
-            # Чтение данных запроса
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
+                return {
+                    'statusCode': 403,
+                    'body': json.dumps({'ok': False, 'error': 'Forbidden'})
+                }
             
-            # Сразу отвечаем Telegram, что получили сообщение
-            self._set_headers()
-            self._send_json_response({'ok': True})
-            
-            # Теперь обрабатываем сообщение
-            update = json.loads(post_data.decode('utf-8'))
-            logger.info(f"Получено обновление ID: {update.get('update_id')}")
-            logger.debug(f"Содержимое: {json.dumps(update)}")
-            
-            # Обработка текстовых сообщений
-            if 'message' in update and 'text' in update['message']:
-                chat_id = update['message']['chat']['id']
-                text = update['message']['text']
-                user = update['message']['from'].get('first_name', 'пользователь')
-                
-                logger.info(f"Сообщение от {user} ({chat_id}): {text}")
-                
-                if text == '/start':
-                    # Создаем клавиатуру с кнопками
-                    keyboard = {
-                        "inline_keyboard": [
-                            [{"text": "О боте", "callback_data": "info"}],
-                            [{"text": "Тест", "callback_data": "test"}]
-                        ]
-                    }
+            # Парсинг данных запроса
+            try:
+                body = event.get('body', '{}')
+                if isinstance(body, str):
+                    update = json.loads(body)
+                else:
+                    update = body
                     
-                    # Отправляем приветствие
-                    send_telegram_message(
-                        chat_id, 
-                        f"👋 Привет, {user}!\n\nЯ тестовый бот для проекта DualAI на Vercel.\nЯ использую webhook-подход.",
-                        keyboard
-                    )
-                else:
-                    # Отправляем эхо
-                    send_telegram_message(chat_id, f"Вы сказали: {text}")
-            
-            # Обработка нажатий на кнопки
-            elif 'callback_query' in update:
-                callback = update['callback_query']
-                chat_id = callback['message']['chat']['id']
-                data = callback['data']
+                logger.info(f"Получено обновление ID: {update.get('update_id')}")
                 
-                logger.info(f"Получен callback с данными: {data}")
+                # Обработка текстовых сообщений
+                if 'message' in update and 'text' in update['message']:
+                    chat_id = update['message']['chat']['id']
+                    text = update['message']['text']
+                    user = update['message']['from'].get('first_name', 'пользователь')
+                    
+                    logger.info(f"Сообщение от {user} ({chat_id}): {text}")
+                    
+                    if text == '/start':
+                        # Создаем клавиатуру с кнопками
+                        keyboard = {
+                            "inline_keyboard": [
+                                [{"text": "О боте", "callback_data": "info"}],
+                                [{"text": "Тест", "callback_data": "test"}]
+                            ]
+                        }
+                        
+                        # Отправляем приветствие
+                        send_telegram_message(
+                            chat_id, 
+                            f"👋 Привет, {user}!\n\nЯ тестовый бот для проекта DualAI на Vercel.\nЯ использую webhook-подход.",
+                            keyboard
+                        )
+                    else:
+                        # Отправляем эхо
+                        send_telegram_message(chat_id, f"Вы сказали: {text}")
                 
-                if data == 'info':
-                    send_telegram_message(chat_id, "Это тестовый бот для проекта DualAI на Vercel через webhook.")
-                elif data == 'test':
-                    send_telegram_message(chat_id, "Тестовое сообщение. Webhook работает!")
-                else:
-                    send_telegram_message(chat_id, f"Получена команда: {data}")
-            
-            return
+                # Обработка нажатий на кнопки
+                elif 'callback_query' in update:
+                    callback = update['callback_query']
+                    chat_id = callback['message']['chat']['id']
+                    data = callback['data']
+                    
+                    logger.info(f"Получен callback с данными: {data}")
+                    
+                    if data == 'info':
+                        send_telegram_message(chat_id, "Это тестовый бот для проекта DualAI на Vercel через webhook.")
+                    elif data == 'test':
+                        send_telegram_message(chat_id, "Тестовое сообщение. Webhook работает!")
+                    else:
+                        send_telegram_message(chat_id, f"Получена команда: {data}")
+                
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps({'ok': True})
+                }
+                
+            except Exception as e:
+                logger.error(f"Ошибка обработки данных: {e}")
+                logger.debug(traceback.format_exc())
+                return {
+                    'statusCode': 400,
+                    'body': json.dumps({'ok': False, 'error': f'Invalid request: {str(e)}'})
+                }
         
-        except Exception as e:
-            logger.error(f"Ошибка обработки webhook: {e}")
-            logger.debug(traceback.format_exc())
+        # Обработка других HTTP методов
+        else:
+            return {
+                'statusCode': 405,
+                'body': json.dumps({'ok': False, 'error': 'Method not allowed'})
+            }
             
-            # Отправляем ответ с ошибкой
-            self._set_headers(500)
-            self._send_json_response({'ok': False, 'error': str(e)})
-            return 
+    except Exception as e:
+        logger.error(f"Общая ошибка обработки webhook: {e}")
+        logger.debug(traceback.format_exc())
+        
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'ok': False, 'error': str(e)})
+        } 
