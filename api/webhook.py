@@ -29,6 +29,8 @@ def send_message(chat_id, text, reply_markup=None):
         payload["reply_markup"] = reply_markup
     
     try:
+        print(f"Sending message to {chat_id}: {text}")
+        print(f"Payload: {json.dumps(payload)}")
         response = requests.post(url, json=payload)
         result = response.json()
         print(f"API Response: {json.dumps(result)}")
@@ -95,6 +97,7 @@ def process_update(update):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        print(f"Получен GET запрос по пути: {self.path}")
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
@@ -103,7 +106,8 @@ class handler(BaseHTTPRequestHandler):
             'status': 'ok',
             'message': 'Telegram webhook is active',
             'timestamp': str(datetime.now()),
-            'bot_token_exists': bool(TELEGRAM_BOT_TOKEN)
+            'bot_token_exists': bool(TELEGRAM_BOT_TOKEN),
+            'path': self.path
         }
         
         self.wfile.write(json.dumps(response_data).encode())
@@ -111,17 +115,33 @@ class handler(BaseHTTPRequestHandler):
     
     def do_POST(self):
         try:
+            print(f"Получен POST запрос по пути: {self.path}")
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             
-            # Парсим JSON данные от Telegram
-            update = json.loads(post_data.decode('utf-8'))
-            
-            # Логирование полученного обновления
-            print(f"Получено обновление: {json.dumps(update)}")
-            
-            # Обрабатываем обновление
-            result = process_update(update)
+            # Логируем заголовки для отладки
+            print("Заголовки запроса:")
+            for header in self.headers:
+                print(f"{header}: {self.headers[header]}")
+                
+            # Логируем тело запроса
+            print(f"Тело запроса ({content_length} байт):")
+            request_body = post_data.decode('utf-8')
+            print(request_body)
+                
+            # Только если путь соответствует /api/webhook обрабатываем как телеграм-запрос
+            if self.path == "/api/webhook" or self.path == "/":
+                # Парсим JSON данные от Telegram
+                update = json.loads(request_body)
+                
+                # Логирование полученного обновления
+                print(f"Получено обновление: {json.dumps(update)}")
+                
+                # Обрабатываем обновление
+                result = process_update(update)
+            else:
+                print(f"Получен запрос на неожиданный путь: {self.path}")
+                result = {"warning": f"Unexpected path: {self.path}"}
             
             # Отправляем HTTP ответ на webhook запрос
             self.send_response(200)
@@ -131,6 +151,7 @@ class handler(BaseHTTPRequestHandler):
             response_data = {
                 'status': 'ok',
                 'message': 'Webhook обработан успешно',
+                'path': self.path,
                 'result': result
             }
             
@@ -138,13 +159,15 @@ class handler(BaseHTTPRequestHandler):
             return
         except Exception as e:
             # В случае ошибки отправляем 500 и информацию об ошибке
+            print(f"Ошибка при обработке запроса: {str(e)}")
             self.send_response(500)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             
             response_data = {
                 'status': 'error',
-                'message': f'Ошибка обработки webhook: {str(e)}'
+                'message': f'Ошибка обработки webhook: {str(e)}',
+                'path': self.path
             }
             
             self.wfile.write(json.dumps(response_data).encode())
