@@ -15,9 +15,5 @@
         { "key": "Access-Control-Allow-Headers", "value": "X-Telegram-Bot-Api-Secret-Token,Content-Type" }
       ]
     }
-  ],
-  "env": {
-    "TEST_TELEGRAM_BOT_TOKEN": "@test_telegram_bot_token",
-    "TEST_WEBHOOK_SECRET": "@test_webhook_secret"
-  }
+  ]
 } 
