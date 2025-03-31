@@ -6,6 +6,10 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.error import TelegramError, NetworkError, TimedOut
+import time
+
+# Глобальные переменные
+START_TIME = time.time()  # Время запуска бота
 
 # Настройка логирования
 LOG_FOLDER = "logs"
@@ -13,24 +17,33 @@ if not os.path.exists(LOG_FOLDER):
     os.makedirs(LOG_FOLDER)
 
 LOG_FILE = os.path.join(LOG_FOLDER, f"bot_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
-
-# Настройка логирования в файл и консоль
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
 logger = logging.getLogger(__name__)
 
-# Получаем токен бота из переменных окружения
-TELEGRAM_BOT_TOKEN = os.environ.get('TEST_TELEGRAM_BOT_TOKEN')
-if not TELEGRAM_BOT_TOKEN:
-    TELEGRAM_BOT_TOKEN = "7513434644:AAECYxIDIkmZRjGgUDrP8ur2cZIni53Qy0E"  # Fallback токен
-    logger.warning("Используется встроенный токен бота. Рекомендуется использовать переменную окружения TEST_TELEGRAM_BOT_TOKEN")
+def setup_logging():
+    """Настройка логирования с записью в файл и консоль."""
+    logger.setLevel(logging.INFO)
+    
+    # Очистка существующих обработчиков
+    logger.handlers = []
+    
+    # Создаем обработчик для вывода в консоль
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    
+    # Создаем обработчик для записи в файл
+    file_handler = logging.FileHandler(LOG_FILE)
+    file_handler.setLevel(logging.INFO)
+    
+    # Создаем форматтер для логов
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    
+    # Добавляем обработчики к логгеру
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    
+    logger.info("Логирование настроено успешно")
 
 # Статистика работы бота
 STATS = {
@@ -41,6 +54,14 @@ STATS = {
     "last_activity": datetime.now(),
     "active_users": set()
 }
+
+def get_bot_token():
+    """Получение токена бота из переменных окружения."""
+    token = os.environ.get("TEST_TELEGRAM_BOT_TOKEN")
+    if not token:
+        logger.warning("Используется встроенный токен бота. Рекомендуется использовать переменную окружения TEST_TELEGRAM_BOT_TOKEN")
+        token = "7513434644:AAECYxIDIkmZRjGgUDrP8ur2cZIni53Qy0E"  # Fallback токен
+    return token
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start."""
@@ -272,46 +293,73 @@ async def periodic_tasks(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка в периодических задачах: {e}")
         logger.debug(traceback.format_exc())
 
-def main():
-    """Основная функция."""
-    logger.info("==================== ЗАПУСК БОТА ====================")
-    logger.info(f"Токен бота: {TELEGRAM_BOT_TOKEN[:5]}...{TELEGRAM_BOT_TOKEN[-5:]}")
+def register_handlers(application):
+    """Регистрация всех обработчиков."""
+    # Добавляем обработчики команд
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("refresh", refresh_command))
     
+    # Добавляем обработчики для сообщений и callback
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(CallbackQueryHandler(handle_callback))
+    
+    # Добавляем обработчик ошибок
+    application.add_error_handler(error_handler)
+    
+    logger.info("Все обработчики зарегистрированы")
+
+# Периодические задачи
+def check_connection_status(context: ContextTypes.DEFAULT_TYPE):
+    """Проверка статуса соединения с Telegram."""
     try:
-        # Создаем приложение
-        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-        
-        # Добавляем обработчики команд
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("status", status_command))
-        application.add_handler(CommandHandler("refresh", refresh_command))
-        
-        # Добавляем обработчики для сообщений и callback
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-        application.add_handler(CallbackQueryHandler(handle_callback))
-        
-        # Добавляем обработчик ошибок
-        application.add_error_handler(error_handler)
-        
-        # Добавляем периодические задачи
-        application.job_queue.run_repeating(
-            periodic_tasks, 
-            interval=60,  # Выполнять каждую минуту
-            first=10      # Начать через 10 секунд после запуска
-        )
-        
-        # Запускаем бота
-        logger.info("Бот запущен в режиме опроса!")
-        
-        # Запуск с оптимальными настройками для стабильности
-        application.run_polling(
-            allowed_updates=Update.ALL_TYPES,
-            drop_pending_updates=True  # Игнорируем обновления, которые накопились когда бот был выключен
-        )
+        # Получаем информацию о боте для проверки соединения
+        bot_info = context.bot.get_me()
+        logger.info(f"Соединение активно. Информация о боте: {bot_info.first_name} (@{bot_info.username})")
     except Exception as e:
-        logger.critical(f"Критическая ошибка при запуске бота: {e}")
-        logger.critical(traceback.format_exc())
-        sys.exit(1)
+        logger.error(f"Ошибка при проверке соединения: {str(e)}")
+
+def log_stats(context: ContextTypes.DEFAULT_TYPE):
+    """Логирование статистики работы бота."""
+    logger.info(f"Бот работает. Время работы: {time.time() - START_TIME:.2f} сек.")
+
+def main():
+    """Основная функция запуска бота"""
+    try:
+        # Настройка логирования и получение токена
+        setup_logging()
+        token = get_bot_token()
+        logger.info("==================== ЗАПУСК БОТА ====================")
+        logger.info(f"Токен бота: {token[:5]}...{token[-4:]}")
+
+        # Создание и настройка приложения
+        application = Application.builder().token(token).build()
+        
+        # Регистрация обработчиков
+        register_handlers(application)
+        
+        # Настройка периодических задач, если job_queue доступен
+        if application.job_queue:
+            application.job_queue.run_repeating(
+                check_connection_status, interval=60, first=10, name="connection_check"
+            )
+            application.job_queue.run_repeating(
+                log_stats, interval=300, first=60, name="stats_logging"
+            )
+            logger.info("Периодические задачи настроены")
+        else:
+            logger.warning("JobQueue недоступен. Установите python-telegram-bot[job-queue] для использования периодических задач")
+        
+        # Запуск бота
+        logger.info("Запуск бота в режиме long polling")
+        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    except Exception as e:
+        logger.critical(f"Критическая ошибка при запуске бота: {str(e)}")
+        logger.critical(f"Traceback: {traceback.format_exc()}")
+        # Ожидание перед перезапуском
+        time.sleep(5)
+        # Рекурсивный перезапуск
+        # main()
 
 if __name__ == "__main__":
     try:

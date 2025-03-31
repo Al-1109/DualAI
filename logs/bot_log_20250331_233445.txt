@@ -56,3 +56,7 @@
 2025-03-31 23:39:23,313 - __main__ - INFO - Отправлена информация о боте пользователю 847964518
 2025-03-31 23:39:55,334 - __main__ - ERROR - Ошибка при проверке соединения: 'coroutine' object has no attribute 'first_name'
 2025-03-31 23:39:55,336 - __main__ - ERROR - Ошибка при обработке обновления: object NoneType can't be used in 'await' expression
+2025-03-31 23:40:45,335 - __main__ - INFO - Бот работает. Время работы: 360.25 сек.
+2025-03-31 23:40:45,335 - __main__ - ERROR - Ошибка при обработке обновления: object NoneType can't be used in 'await' expression
+2025-03-31 23:40:55,333 - __main__ - ERROR - Ошибка при проверке соединения: 'coroutine' object has no attribute 'first_name'
+2025-03-31 23:40:55,333 - __main__ - ERROR - Ошибка при обработке обновления: object NoneType can't be used in 'await' expression
