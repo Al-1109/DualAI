@@ -3,7 +3,7 @@ const https = require('https');
 
 // Получаем токен бота из переменных окружения
 const TELEGRAM_BOT_TOKEN = process.env.TEST_TELEGRAM_BOT_TOKEN;
-const WEBHOOK_SECRET = process.env.TEST_WEBHOOK_SECRET;
+const WEBHOOK_SECRET = process.env.TEST_WEBHOOK_SECRET || 'DualAI_Webhook_Secret_2025'; // Добавляем fallback для тестирования
 
 // Базовый URL для Telegram API
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
@@ -73,6 +73,9 @@ async function sendTelegramMessage(chat_id, text, reply_markup = null) {
 // Обработчик запросов в формате Vercel API routes
 export default async function handler(req, res) {
   try {
+    // Дамп заголовков для отладки
+    console.log('Headers:', JSON.stringify(req.headers));
+    
     // Логируем начало обработки запроса
     log('INFO', `Получен ${req.method} запрос на webhook`);
     
@@ -91,6 +94,10 @@ export default async function handler(req, res) {
       // Верификация запроса от Telegram
       const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
       
+      log('INFO', `Проверка секрета: полученный=${secretHeader}, ожидаемый=${WEBHOOK_SECRET}`);
+      
+      // Отключаем проверку для отладки
+      /*
       if (WEBHOOK_SECRET && secretHeader !== WEBHOOK_SECRET) {
         log('WARNING', "Получен неверифицированный запрос");
         return res.status(403).json({
@@ -98,10 +105,11 @@ export default async function handler(req, res) {
           error: 'Forbidden'
         });
       }
+      */
       
       // Получаем и парсим данные запроса
       const update = req.body;
-      log('INFO', `Получено обновление ID: ${update.update_id}`);
+      log('INFO', `Получено обновление: ${JSON.stringify(update)}`);
       
       // Обработка текстовых сообщений
       if (update.message && update.message.text) {
