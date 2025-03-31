@@ -97,7 +97,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.info(f"Отправлено тестовое сообщение пользователю {user.id}")
         elif callback_data == "menu":
             # Возвращаем главное меню
-            await start(update, context)
+            keyboard = [
+                [InlineKeyboardButton("О боте", callback_data="info")],
+                [InlineKeyboardButton("Тест", callback_data="test")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.message.reply_text(
+                f"👋 Главное меню бота DualAI.\n\nВыберите опцию:",
+                reply_markup=reply_markup
+            )
             logger.info(f"Пользователь {user.id} вернулся в главное меню")
     except Exception as e:
         logger.error(f"Ошибка в обработчике handle_callback: {e}")
@@ -139,14 +148,10 @@ def main():
     # Запускаем бота
     logger.info("Бот запущен!")
     
-    # Расширенные настройки для повышения стабильности
+    # Запускаем с базовыми параметрами для стабильности
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,  # Игнорируем обновления, которые накопились когда бот был выключен
-        pool_timeout=30,            # Увеличиваем таймаут для повышения стабильности
-        read_timeout=7,             # Оптимальные значения таймаутов
-        write_timeout=7,
-        connect_timeout=7
+        drop_pending_updates=True    # Игнорируем обновления, которые накопились когда бот был выключен
     )
 
 if __name__ == "__main__":
