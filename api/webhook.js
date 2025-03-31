@@ -59,7 +59,7 @@ async function makeRequest(method, params) {
 }
 
 // Отправляет сообщение пользователю через Telegram API
-async function sendTelegramMessage(chat_id, text, reply_markup = null) {
+async function sendTelegramMessage(chat_id, text, reply_markup = null, silent = false) {
   const payload = {
     chat_id: chat_id,
     text: text,
@@ -68,6 +68,11 @@ async function sendTelegramMessage(chat_id, text, reply_markup = null) {
   
   if (reply_markup) {
     payload.reply_markup = reply_markup;
+  }
+  
+  // Отключаем уведомление, если флаг silent = true
+  if (silent) {
+    payload.disable_notification = true;
   }
   
   log('INFO', `Отправка сообщения на ${chat_id}: ${text.substring(0, 50)}...`);
@@ -105,68 +110,58 @@ async function deleteMessage(chat_id, message_id) {
   return makeRequest('deleteMessage', payload);
 }
 
-// Получает историю сообщений в чате
-async function getChatHistory(chat_id, limit = 10) {
-  const payload = {
-    chat_id: chat_id,
-    limit: limit
-  };
+// Удаляет предыдущие сообщения в чате
+async function deleteMessages(chat_id, messages_ids) {
+  log('INFO', `Удаление ${messages_ids.length} сообщений в чате ${chat_id}`);
   
-  log('INFO', `Получение истории сообщений: chat_id=${chat_id}`);
-  
-  return makeRequest('getUpdates', { offset: -1, limit: 100 })
-    .then(result => {
-      if (!result.ok) return { messages: [] };
-      
-      // Фильтруем сообщения по чату
-      const updates = result.response.result || [];
-      const messages = updates
-        .filter(update => 
-          (update.message && update.message.chat.id === chat_id) || 
-          (update.callback_query && update.callback_query.message.chat.id === chat_id)
-        )
-        .map(update => {
-          if (update.message) {
-            return { 
-              message_id: update.message.message_id,
-              chat_id: update.message.chat.id
-            };
-          }
-          if (update.callback_query) {
-            return { 
-              message_id: update.callback_query.message.message_id,
-              chat_id: update.callback_query.message.chat.id
-            };
-          }
-          return null;
-        })
-        .filter(msg => msg !== null);
-        
-      return { messages };
-    });
-}
-
-// Очищает чат от предыдущих сообщений бота
-async function clearChatHistory(chat_id, message_id) {
-  try {
-    // Удаляем текущее сообщение, на которое нажали
-    if (message_id) {
+  for (const message_id of messages_ids) {
+    try {
       await deleteMessage(chat_id, message_id);
+      // Небольшая пауза между удалениями
+      await new Promise(resolve => setTimeout(resolve, 50)); 
+    } catch (error) {
+      log('ERROR', `Не удалось удалить сообщение ${message_id}: ${error.message}`);
     }
-    
-    // Получаем историю сообщений и удаляем их
-    // Telegram API не позволяет легко очистить чат, 
-    // поэтому мы удаляем только текущее сообщение
-    
-    return true;
-  } catch (error) {
-    log('ERROR', `Ошибка при очистке чата: ${error.message}`);
-    return false;
   }
 }
 
+// Объект для хранения ID последних сообщений для каждого чата
+const chatLastMessages = {};
+
+// Сохраняет ID последнего сообщения для чата
+function saveLastMessageId(chat_id, message_id) {
+  if (!chatLastMessages[chat_id]) {
+    chatLastMessages[chat_id] = [];
+  }
+  
+  // Добавляем новое ID сообщения
+  chatLastMessages[chat_id].push(message_id);
+  
+  // Ограничиваем размер массива до 5 последних сообщений
+  if (chatLastMessages[chat_id].length > 5) {
+    chatLastMessages[chat_id].shift();
+  }
+  
+  log('INFO', `Сохранен ID сообщения ${message_id} для чата ${chat_id}. Всего: ${chatLastMessages[chat_id].length}`);
+}
+
+// Получает ID последних сообщений для чата
+function getLastMessageIds(chat_id) {
+  return chatLastMessages[chat_id] || [];
+}
+
 // Отправляет главное меню
-async function sendMainMenu(chat_id, user, message_id = null) {
+async function sendMainMenu(chat_id, user, cleanup = false) {
+  // Если нужно очистить предыдущие сообщения
+  if (cleanup) {
+    const messageIds = getLastMessageIds(chat_id);
+    if (messageIds.length > 0) {
+      await deleteMessages(chat_id, messageIds);
+      // Очищаем историю после удаления
+      chatLastMessages[chat_id] = [];
+    }
+  }
+  
   // Создаем клавиатуру с основными разделами
   const keyboard = {
     "inline_keyboard": [
@@ -181,13 +176,39 @@ async function sendMainMenu(chat_id, user, message_id = null) {
     `Это главное меню DualAI бота.\n` +
     `Выберите интересующий вас раздел, нажав на соответствующую кнопку.`;
   
-  // Если есть message_id, то редактируем существующее сообщение
-  if (message_id) {
-    return editMessage(chat_id, message_id, menuText, keyboard);
-  } else {
-    // Иначе отправляем новое сообщение
-    return sendTelegramMessage(chat_id, menuText, keyboard);
+  // Отправляем тихое сообщение (без уведомления)
+  const result = await sendTelegramMessage(chat_id, menuText, keyboard, true);
+  
+  // Если сообщение успешно отправлено, сохраняем его ID
+  if (result.ok && result.response.result) {
+    saveLastMessageId(chat_id, result.response.result.message_id);
   }
+  
+  return result;
+}
+
+// Отправляет новое сообщение и удаляет предыдущее
+async function sendNewMessage(chat_id, text, keyboard) {
+  // Получаем ID предыдущих сообщений
+  const messageIds = getLastMessageIds(chat_id);
+  
+  // Отправляем новое сообщение (тихое)
+  const result = await sendTelegramMessage(chat_id, text, keyboard, true);
+  
+  // Если сообщение успешно отправлено, сохраняем его ID
+  if (result.ok && result.response.result) {
+    const newMessageId = result.response.result.message_id;
+    saveLastMessageId(chat_id, newMessageId);
+    
+    // Удаляем предыдущие сообщения
+    if (messageIds.length > 0) {
+      await deleteMessages(chat_id, messageIds);
+      // Очищаем историю, оставляем только текущее
+      chatLastMessages[chat_id] = [newMessageId];
+    }
+  }
+  
+  return result;
 }
 
 // Обработчик запросов в формате Vercel API routes
@@ -202,7 +223,7 @@ export default async function handler(req, res) {
         status: 'ok',
         message: 'Webhook активен',
         timestamp: new Date().toISOString(),
-        version: '1.5.0'
+        version: '1.6.0'
       });
     }
     
@@ -226,11 +247,17 @@ export default async function handler(req, res) {
         log('INFO', `Сообщение от ${user} (${chat_id}): ${text}`);
         
         if (text === '/start' || text === '/menu') {
-          // Отправляем главное меню (новое сообщение)
-          await sendMainMenu(chat_id, user);
+          // Отправляем главное меню с очисткой
+          await sendMainMenu(chat_id, user, true);
         } else if (text === '/clean') {
-          // Команда для очистки чата (удаляет только сообщения бота)
-          await sendTelegramMessage(chat_id, "Команда очистки чата выполнена. Отправьте /start для начала работы с ботом.");
+          // Команда для очистки чата
+          const messageIds = getLastMessageIds(chat_id);
+          if (messageIds.length > 0) {
+            await deleteMessages(chat_id, messageIds);
+            chatLastMessages[chat_id] = [];
+          }
+          
+          await sendTelegramMessage(chat_id, "Чат очищен. Отправьте /start для начала работы с ботом.");
         } else {
           // Отправляем эхо
           await sendTelegramMessage(chat_id, `Вы сказали: ${text}`);
@@ -241,7 +268,6 @@ export default async function handler(req, res) {
       else if (update.callback_query) {
         const callback = update.callback_query;
         const chat_id = callback.message.chat.id;
-        const message_id = callback.message.message_id;
         const data = callback.data;
         const user = callback.from.first_name || 'пользователь';
         
@@ -255,13 +281,12 @@ export default async function handler(req, res) {
             ]
           };
           
-          // Редактируем текущее сообщение вместо удаления и создания нового
-          await editMessage(
+          // Отправляем новое сообщение и удаляем старое
+          await sendNewMessage(
             chat_id,
-            message_id,
             `# О проекте DualAI 🚀\n\n` +
             `DualAI - это экспериментальный Telegram бот, разработанный для демонстрации возможностей Vercel и webhook API.\n\n` +
-            `Версия: 1.5.0\n` +
+            `Версия: 1.6.0\n` +
             `Платформа: Vercel\n` +
             `Технологии: Node.js, JavaScript`,
             aboutKeyboard
@@ -274,10 +299,9 @@ export default async function handler(req, res) {
             ]
           };
           
-          // Редактируем текущее сообщение
-          await editMessage(
+          // Отправляем новое сообщение и удаляем старое
+          await sendNewMessage(
             chat_id,
-            message_id,
             `# Возможности бота 🛠️\n\n` +
             `- Статичное меню с навигацией\n` +
             `- Обработка webhook запросов\n` +
@@ -297,10 +321,9 @@ export default async function handler(req, res) {
           
           const now = new Date();
           
-          // Редактируем текущее сообщение
-          await editMessage(
+          // Отправляем новое сообщение и удаляем старое
+          await sendNewMessage(
             chat_id,
-            message_id,
             `# Статистика 📊\n\n` +
             `🕒 Текущее время: ${now.toISOString()}\n` +
             `👤 Пользователь: ${user}\n` +
@@ -316,22 +339,21 @@ export default async function handler(req, res) {
             ]
           };
           
-          // Редактируем текущее сообщение
-          await editMessage(
+          // Отправляем новое сообщение и удаляем старое
+          await sendNewMessage(
             chat_id,
-            message_id,
             `# Помощь ❓\n\n` +
             `Доступные команды:\n` +
             `/start - Запустить бота\n` +
             `/menu - Показать главное меню\n` +
-            `/clean - Очистить чат (удаляет последнее сообщение)\n\n` +
+            `/clean - Очистить чат\n\n` +
             `Для навигации используйте кнопки внизу сообщения.`,
             helpKeyboard
           );
         }
         else if (data === 'menu') {
-          // Возврат в главное меню (редактируем текущее сообщение)
-          await sendMainMenu(chat_id, user, message_id);
+          // Возврат в главное меню (отправляем новое и удаляем старое)
+          await sendMainMenu(chat_id, user, false);
         }
         else {
           // Обработка неизвестной команды
@@ -341,10 +363,9 @@ export default async function handler(req, res) {
             ]
           };
           
-          // Редактируем текущее сообщение
-          await editMessage(
+          // Отправляем новое сообщение и удаляем старое
+          await sendNewMessage(
             chat_id,
-            message_id,
             `Получена неизвестная команда: ${data}`,
             backKeyboard
           );
