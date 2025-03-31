@@ -75,6 +75,24 @@ async function sendTelegramMessage(chat_id, text, reply_markup = null) {
   return makeRequest('sendMessage', payload);
 }
 
+// Редактирует сообщение
+async function editMessage(chat_id, message_id, text, reply_markup = null) {
+  const payload = {
+    chat_id: chat_id,
+    message_id: message_id,
+    text: text,
+    parse_mode: "Markdown"
+  };
+  
+  if (reply_markup) {
+    payload.reply_markup = reply_markup;
+  }
+  
+  log('INFO', `Редактирование сообщения: chat_id=${chat_id}, message_id=${message_id}`);
+  
+  return makeRequest('editMessageText', payload);
+}
+
 // Удаляет сообщение
 async function deleteMessage(chat_id, message_id) {
   const payload = {
@@ -148,7 +166,7 @@ async function clearChatHistory(chat_id, message_id) {
 }
 
 // Отправляет главное меню
-async function sendMainMenu(chat_id, user) {
+async function sendMainMenu(chat_id, user, message_id = null) {
   // Создаем клавиатуру с основными разделами
   const keyboard = {
     "inline_keyboard": [
@@ -159,14 +177,17 @@ async function sendMainMenu(chat_id, user) {
     ]
   };
   
-  // Отправляем приветствие с меню
-  return sendTelegramMessage(
-    chat_id, 
-    `# Добро пожаловать, ${user}! 👋\n\n` +
+  const menuText = `# Добро пожаловать, ${user}! 👋\n\n` +
     `Это главное меню DualAI бота.\n` +
-    `Выберите интересующий вас раздел, нажав на соответствующую кнопку.`,
-    keyboard
-  );
+    `Выберите интересующий вас раздел, нажав на соответствующую кнопку.`;
+  
+  // Если есть message_id, то редактируем существующее сообщение
+  if (message_id) {
+    return editMessage(chat_id, message_id, menuText, keyboard);
+  } else {
+    // Иначе отправляем новое сообщение
+    return sendTelegramMessage(chat_id, menuText, keyboard);
+  }
 }
 
 // Обработчик запросов в формате Vercel API routes
@@ -181,7 +202,7 @@ export default async function handler(req, res) {
         status: 'ok',
         message: 'Webhook активен',
         timestamp: new Date().toISOString(),
-        version: '1.4.0'
+        version: '1.5.0'
       });
     }
     
@@ -205,8 +226,11 @@ export default async function handler(req, res) {
         log('INFO', `Сообщение от ${user} (${chat_id}): ${text}`);
         
         if (text === '/start' || text === '/menu') {
-          // Отправляем главное меню
+          // Отправляем главное меню (новое сообщение)
           await sendMainMenu(chat_id, user);
+        } else if (text === '/clean') {
+          // Команда для очистки чата (удаляет только сообщения бота)
+          await sendTelegramMessage(chat_id, "Команда очистки чата выполнена. Отправьте /start для начала работы с ботом.");
         } else {
           // Отправляем эхо
           await sendTelegramMessage(chat_id, `Вы сказали: ${text}`);
@@ -223,9 +247,6 @@ export default async function handler(req, res) {
         
         log('INFO', `Получен callback с данными: ${data}`);
         
-        // Сначала удаляем текущее сообщение
-        await deleteMessage(chat_id, message_id);
-        
         // Обрабатываем различные команды
         if (data === 'about') {
           const aboutKeyboard = {
@@ -234,11 +255,13 @@ export default async function handler(req, res) {
             ]
           };
           
-          await sendTelegramMessage(
-            chat_id, 
+          // Редактируем текущее сообщение вместо удаления и создания нового
+          await editMessage(
+            chat_id,
+            message_id,
             `# О проекте DualAI 🚀\n\n` +
             `DualAI - это экспериментальный Telegram бот, разработанный для демонстрации возможностей Vercel и webhook API.\n\n` +
-            `Версия: 1.4.0\n` +
+            `Версия: 1.5.0\n` +
             `Платформа: Vercel\n` +
             `Технологии: Node.js, JavaScript`,
             aboutKeyboard
@@ -251,8 +274,10 @@ export default async function handler(req, res) {
             ]
           };
           
-          await sendTelegramMessage(
-            chat_id, 
+          // Редактируем текущее сообщение
+          await editMessage(
+            chat_id,
+            message_id,
             `# Возможности бота 🛠️\n\n` +
             `- Статичное меню с навигацией\n` +
             `- Обработка webhook запросов\n` +
@@ -272,8 +297,10 @@ export default async function handler(req, res) {
           
           const now = new Date();
           
-          await sendTelegramMessage(
-            chat_id, 
+          // Редактируем текущее сообщение
+          await editMessage(
+            chat_id,
+            message_id,
             `# Статистика 📊\n\n` +
             `🕒 Текущее время: ${now.toISOString()}\n` +
             `👤 Пользователь: ${user}\n` +
@@ -289,19 +316,22 @@ export default async function handler(req, res) {
             ]
           };
           
-          await sendTelegramMessage(
-            chat_id, 
+          // Редактируем текущее сообщение
+          await editMessage(
+            chat_id,
+            message_id,
             `# Помощь ❓\n\n` +
             `Доступные команды:\n` +
             `/start - Запустить бота\n` +
-            `/menu - Показать главное меню\n\n` +
+            `/menu - Показать главное меню\n` +
+            `/clean - Очистить чат (удаляет последнее сообщение)\n\n` +
             `Для навигации используйте кнопки внизу сообщения.`,
             helpKeyboard
           );
         }
         else if (data === 'menu') {
-          // Возврат в главное меню
-          await sendMainMenu(chat_id, user);
+          // Возврат в главное меню (редактируем текущее сообщение)
+          await sendMainMenu(chat_id, user, message_id);
         }
         else {
           // Обработка неизвестной команды
@@ -311,8 +341,10 @@ export default async function handler(req, res) {
             ]
           };
           
-          await sendTelegramMessage(
-            chat_id, 
+          // Редактируем текущее сообщение
+          await editMessage(
+            chat_id,
+            message_id,
             `Получена неизвестная команда: ${data}`,
             backKeyboard
           );
