@@ -4,6 +4,7 @@ import os
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+from http.server import BaseHTTPRequestHandler
 
 # Настройка логирования
 logging.basicConfig(
@@ -44,56 +45,35 @@ def verify_telegram_request(request_headers):
     # Сравниваем секреты
     return telegram_hash == WEBHOOK_SECRET
 
-async def handler(request):
-    """Точка входа для Vercel Serverless Function."""
-    logger.info(f"Получен запрос: {request.method}")
+def handler(request):
+    """Простая функция-обработчик для Vercel."""
     
-    # Обработка GET-запроса для проверки работоспособности
+    # Обработка GET-запроса
     if request.method == 'GET':
-        logger.info("Обработка GET запроса")
         return {
-            'statusCode': HTTPStatus.OK,
+            'statusCode': 200,
             'body': json.dumps({
                 'status': 'ok',
-                'message': 'Telegram webhook endpoint is active',
-                'timestamp': datetime.now().isoformat(),
-                'environment': os.getenv('VERCEL_ENV', 'unknown')
+                'message': 'Webhook endpoint is active',
+                'timestamp': str(datetime.now())
             })
         }
     
-    # Обработка POST-запроса от Telegram
+    # Обработка POST-запроса
     elif request.method == 'POST':
-        logger.info("Обработка POST запроса")
-        
-        # Проверяем аутентичность запроса
-        if not verify_telegram_request(request.headers):
-            logger.warning("Не удалось верифицировать запрос")
-            return {
-                'statusCode': HTTPStatus.UNAUTHORIZED,
-                'body': json.dumps({'error': 'Unauthorized'})
-            }
-        
-        try:
-            # Логируем содержимое запроса
-            logger.info(f"Тело запроса: {request.body[:100]}...")
-            
-            # В полной реализации здесь был бы код для отправки ответа в Telegram,
-            # но для тестирования мы просто возвращаем успешный статус
-            return {
-                'statusCode': HTTPStatus.OK,
-                'body': json.dumps({'status': 'ok', 'message': 'Webhook received'})
-            }
-        except Exception as e:
-            logger.error(f"Ошибка обработки запроса: {str(e)}")
-            return {
-                'statusCode': HTTPStatus.INTERNAL_SERVER_ERROR,
-                'body': json.dumps({'error': str(e)})
-            }
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'status': 'ok',
+                'message': 'Webhook received'
+            })
+        }
     
     # Обработка остальных методов
     else:
-        logger.warning(f"Неподдерживаемый метод: {request.method}")
         return {
-            'statusCode': HTTPStatus.METHOD_NOT_ALLOWED,
-            'body': json.dumps({'error': 'Method not allowed'})
+            'statusCode': 405,
+            'body': json.dumps({
+                'error': 'Method not allowed'
+            })
         } 
