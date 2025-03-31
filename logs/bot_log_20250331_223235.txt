@@ -1,0 +1,7 @@
+2025-03-31 22:32:35,625 - __main__ - CRITICAL - Критическая ошибка при запуске бота: name 'setup_logging' is not defined
+2025-03-31 22:32:35,633 - __main__ - CRITICAL - Traceback: Traceback (most recent call last):
+  File "/Users/albertkashin/DualAl/DualAI/test_bot.py", line 320, in main
+    setup_logging()
+    ^^^^^^^^^^^^^
+NameError: name 'setup_logging' is not defined
+

@@ -1,0 +1,9 @@
+2025-03-31 22:31:31,823 - __main__ - INFO - ==================== ЗАПУСК БОТА ====================
+2025-03-31 22:31:31,824 - __main__ - INFO - Токен бота: 75134...3Qy0E
+2025-03-31 22:31:32,144 - __main__ - CRITICAL - Критическая ошибка при запуске бота: 'NoneType' object has no attribute 'run_repeating'
+2025-03-31 22:31:32,145 - __main__ - CRITICAL - Traceback (most recent call last):
+  File "/Users/albertkashin/DualAl/DualAI/test_bot.py", line 297, in main
+    application.job_queue.run_repeating(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'run_repeating'
+
