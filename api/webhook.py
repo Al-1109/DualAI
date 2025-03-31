@@ -13,7 +13,7 @@ if not TELEGRAM_BOT_TOKEN:
 # Базовый URL для Telegram API
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
-def send_message(chat_id, text, reply_markup=None):
+def send_telegram_message(chat_id, text, reply_markup=None):
     """Отправляет сообщение пользователю через Telegram API."""
     url = f"{TELEGRAM_API_URL}/sendMessage"
     payload = {
@@ -37,7 +37,6 @@ def send_message(chat_id, text, reply_markup=None):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        print(f"GET запрос на {self.path}")
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
@@ -52,82 +51,62 @@ class handler(BaseHTTPRequestHandler):
         return
     
     def do_POST(self):
-        print(f"POST запрос на {self.path}")
-        
         try:
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
-            update = json.loads(post_data.decode('utf-8'))
             
-            print(f"Получены данные: {json.dumps(update)}")
-            
-            # Готовим ответ на webhook
+            # Сразу отвечаем Telegram, что получили сообщение
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
+            self.wfile.write(json.dumps({'ok': True}).encode())
             
-            response_data = {'status': 'ok'}
-            self.wfile.write(json.dumps(response_data).encode())
+            # Теперь обрабатываем сообщение
+            update = json.loads(post_data.decode('utf-8'))
+            print(f"Получено обновление: {json.dumps(update)}")
             
-            # После отправки ответа на webhook обрабатываем сообщение
-            try:
-                # Проверяем наличие сообщения с текстом
-                if 'message' in update and 'text' in update['message']:
-                    chat_id = update['message']['chat']['id']
-                    message_text = update['message']['text']
-                    user_name = update['message']['from'].get('first_name', 'пользователь')
-                    
-                    print(f"Сообщение от {user_name} ({chat_id}): {message_text}")
-                    
-                    # Обработка команды /start
-                    if message_text == '/start':
-                        reply_text = f"Привет, {user_name}! Я тестовый бот для проекта DualAI."
-                        
-                        # Создаем клавиатуру
-                        keyboard = {
-                            "inline_keyboard": [
-                                [{"text": "Информация", "callback_data": "info"}],
-                                [{"text": "Тест", "callback_data": "test"}]
-                            ]
-                        }
-                        
-                        # Отправляем сообщение с клавиатурой
-                        send_result = send_message(chat_id, reply_text, keyboard)
-                        print(f"Результат отправки: {json.dumps(send_result)}")
-                    else:
-                        # Эхо для других сообщений
-                        reply_text = f"Вы сказали: {message_text}"
-                        send_result = send_message(chat_id, reply_text)
-                        print(f"Результат отправки: {json.dumps(send_result)}")
+            if 'message' in update and 'text' in update['message']:
+                chat_id = update['message']['chat']['id']
+                text = update['message']['text']
+                user = update['message']['from'].get('first_name', 'пользователь')
                 
-                # Обработка нажатий на кнопки
-                elif 'callback_query' in update:
-                    callback_query = update['callback_query']
-                    chat_id = callback_query['message']['chat']['id']
-                    data = callback_query['data']
+                print(f"Сообщение от {user} ({chat_id}): {text}")
+                
+                if text == '/start':
+                    # Создаем клавиатуру с кнопками
+                    keyboard = {
+                        "inline_keyboard": [
+                            [{"text": "О боте", "callback_data": "info"}],
+                            [{"text": "Тест", "callback_data": "test"}]
+                        ]
+                    }
                     
-                    print(f"Callback query с данными: {data}")
-                    
-                    if data == 'info':
-                        text = "Это тестовый бот для проекта DualAI на Vercel."
-                    else:
-                        text = "Тестовый ответ на callback."
-                    
-                    send_result = send_message(chat_id, text)
-                    print(f"Результат отправки: {json.dumps(send_result)}")
-            except Exception as e:
-                print(f"Ошибка при обработке сообщения: {e}")
-                traceback.print_exc()
+                    # Отправляем приветствие
+                    send_telegram_message(
+                        chat_id, 
+                        f"👋 Привет, {user}!\n\nЯ тестовый бот для проекта DualAI.",
+                        keyboard
+                    )
+                else:
+                    # Отправляем эхо
+                    send_telegram_message(chat_id, f"Вы сказали: {text}")
+            
+            # Обрабатываем нажатия на кнопки
+            elif 'callback_query' in update:
+                callback = update['callback_query']
+                chat_id = callback['message']['chat']['id']
+                data = callback['data']
+                
+                print(f"Получен callback с данными: {data}")
+                
+                if data == 'info':
+                    send_telegram_message(chat_id, "Это тестовый бот для проекта DualAI на Vercel.")
+                else:
+                    send_telegram_message(chat_id, "Тестовое сообщение. Webhook работает!")
             
             return
+        
         except Exception as e:
-            print(f"Общая ошибка обработки webhook: {e}")
+            print(f"Ошибка обработки webhook: {e}")
             traceback.print_exc()
-            
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            
-            response_data = {'status': 'error', 'error': str(e)}
-            self.wfile.write(json.dumps(response_data).encode())
             return 
