@@ -1,0 +1,29 @@
+[Unit]
+Description=DualAI Telegram Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=dualai
+Group=dualai
+WorkingDirectory=/home/dualai/DualAI
+ExecStart=/usr/bin/python3 /home/dualai/DualAI/vps_bot.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/dualai/bot-stdout.log
+StandardError=append:/var/log/dualai/bot-stderr.log
+Environment="TEST_TELEGRAM_BOT_TOKEN=7513434644:AAECYxIDIkmZRjGgUDrP8ur2cZIni53Qy0E"
+# Добавьте другие переменные окружения по необходимости
+# Environment="VARIABLE_NAME=value"
+
+# Ограничение ресурсов
+MemoryLimit=300M
+CPUQuota=50%
+
+# Настройки безопасности
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target 
